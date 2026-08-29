@@ -1214,7 +1214,7 @@ const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
                     <span className="item-name">{stg.name}</span>
                     {isSelected && <span className="item-active-tag">Active</span>}
                   </div>
-                  <p className="item-desc">{stg.description}</p>
+                  <p className="item-desc">{selectedStageMeta.explanation}</p>
                 </div>
               );
             })}

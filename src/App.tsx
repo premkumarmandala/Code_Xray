@@ -140,9 +140,24 @@ interface ObjectCodeVisualData {
 }
 
 function extractObjectCodeVisualData(assemblyContent: string, objectDisassembly: string): ObjectCodeVisualData {
-  // 1. Asm sample from assemblyContent or objectDisassembly
-  let asmSample: string[] = [];
-  if (assemblyContent) {
+  const fullText = (assemblyContent + '\n' + objectDisassembly);
+
+  // 1. Asm sample from objectDisassembly or assemblyContent
+  const asmSample: string[] = [];
+  if (objectDisassembly) {
+    const lines = objectDisassembly.split('\n');
+    for (const l of lines) {
+      const match = l.match(/^\s*[0-9a-fA-F]+:\s+(?:[0-9a-fA-F]{2}\s+)+\s*(.+)$/);
+      if (match) {
+        const asm = match[1].trim();
+        if (asm && !asm.startsWith('.')) {
+          asmSample.push(asm);
+          if (asmSample.length >= 3) break;
+        }
+      }
+    }
+  }
+  if (asmSample.length === 0 && assemblyContent) {
     const lines = assemblyContent.split('\n');
     for (const l of lines) {
       const t = l.trim();
@@ -153,24 +168,22 @@ function extractObjectCodeVisualData(assemblyContent: string, objectDisassembly:
     }
   }
   if (asmSample.length === 0) {
-    asmSample = ['pushq %rbp', 'movq %rsp, %rbp', 'callq printf@PLT'];
+    asmSample.push('pushq %rbp', 'movq %rsp, %rbp', 'callq 0x0 <add>');
   }
 
-  // 2. Machine Mappings from objectDisassembly (e.g., "7: 89 75 f8  movl %esi, -0x8(%rbp)")
+  // 2. Machine Mappings (Instruction to Hex Bytes) dynamically parsed from disassembly artifact
   const machineMappings: { asm: string; hex: string }[] = [];
   if (objectDisassembly) {
     const lines = objectDisassembly.split('\n');
     for (const line of lines) {
-      // match lines like " 0: 55                           pushq %rbp"
-      // or "1a: c7 45 fc 05 00 00 00   movl $0x5, -0x4(%rbp)"
+      // Matches objdump style: " 1a: c7 45 fc 05 00 00 00   movl $0x5, -0x4(%rbp)"
       const match = line.match(/^\s*[0-9a-fA-F]+:\s+([0-9a-fA-F ]{2,24})\s+(.+)$/);
       if (match) {
-        const hex = match[1].trim();
+        const hex = match[1].trim().replace(/\s+/g, ' ');
         const asm = match[2].trim();
-        // filter out non-instruction lines or duplicate hex patterns if any
         if (hex && asm && !asm.startsWith('.')) {
           machineMappings.push({ asm, hex });
-          if (machineMappings.length >= 2) break;
+          if (machineMappings.length >= 3) break;
         }
       }
     }
@@ -178,48 +191,95 @@ function extractObjectCodeVisualData(assemblyContent: string, objectDisassembly:
   if (machineMappings.length === 0) {
     machineMappings.push(
       { asm: 'pushq %rbp', hex: '55' },
+      { asm: 'movq %rsp, %rbp', hex: '48 89 e5' },
       { asm: 'movl %edi, -0x4(%rbp)', hex: '89 7d fc' }
     );
   }
 
-  // 3. Sections check
-  // Check if .text, .data, .rodata, .bss exist in disassembly / assembly output
-  const fullText = (assemblyContent + '\n' + objectDisassembly);
+  // 3. Sections dynamically derived from object disassembly header and directives
   const detectedSections: { name: string; desc: string }[] = [];
-
-  // .text always exists for executable code
-  detectedSections.push({ name: '.text', desc: 'executable instructions' });
-
-  if (fullText.includes('.rodata') || fullText.includes('.str') || fullText.includes('rodata')) {
-    detectedSections.push({ name: '.rodata', desc: 'read-only constants' });
+  
+  // Extract sections mentioned in disassembly output (e.g., "Disassembly of section .text:")
+  const sectionMatches = [...objectDisassembly.matchAll(/Disassembly of section\s+([.\w]+):/g)];
+  if (sectionMatches.length > 0) {
+    for (const m of sectionMatches) {
+      const secName = m[1];
+      let desc = 'object code segment';
+      if (secName === '.text') desc = 'executable instructions';
+      else if (secName === '.rodata') desc = 'read-only constants';
+      else if (secName === '.data') desc = 'initialized writable data';
+      else if (secName === '.bss') desc = 'zero/uninitialized data';
+      if (!detectedSections.some(s => s.name === secName)) {
+        detectedSections.push({ name: secName, desc });
+      }
+    }
   }
-  if (fullText.includes('.data')) {
-    detectedSections.push({ name: '.data', desc: 'initialized writable data' });
-  }
-  if (fullText.includes('.bss')) {
-    detectedSections.push({ name: '.bss', desc: 'zero/uninitialized data' });
+
+  // Check assembly or text fallback if no section match found
+  if (detectedSections.length === 0) {
+    detectedSections.push({ name: '.text', desc: 'executable instructions' });
+    if (fullText.includes('.rodata') || fullText.includes('.str') || fullText.includes('rodata')) {
+      detectedSections.push({ name: '.rodata', desc: 'read-only constants' });
+    }
+    if (fullText.includes('.data')) {
+      detectedSections.push({ name: '.data', desc: 'initialized writable data' });
+    }
+    if (fullText.includes('.bss')) {
+      detectedSections.push({ name: '.bss', desc: 'zero/uninitialized data' });
+    }
   }
 
-  // 4. Symbols & Relocations
-  const symbols: string[] = [];
-  if (fullText.includes('<add>') || fullText.includes('add:')) symbols.push('add');
-  if (fullText.includes('<main>') || fullText.includes('main:')) symbols.push('main');
-  if (fullText.includes('printf')) symbols.push('printf');
-  if (symbols.length === 0) symbols.push('main', 'add');
+  // 4. Function names and symbols derived from actual artifact (<func_name>: or label:)
+  const symbolsSet = new Set<string>();
 
-  const relocations: string[] = [];
-  if (fullText.includes('printf') || fullText.includes('@PLT') || fullText.includes('callq  0x')) {
-    relocations.push('printf (PLT entry)');
-  } else {
-    relocations.push('external function addresses');
+  // Extract function labels like "0000000000000000 <add>:" from disassembly
+  const disasmSymbols = [...objectDisassembly.matchAll(/<([A-Za-z_][A-Za-z0-9_]*)>:/g)];
+  for (const match of disasmSymbols) {
+    symbolsSet.add(match[1]);
+  }
+
+  // Extract labels like "main:" or ".globl main" from assembly content if needed
+  if (symbolsSet.size === 0 && assemblyContent) {
+    const asmLabels = [...assemblyContent.matchAll(/^[ \t]*([A-Za-z_][A-Za-z0-9_]*):/gm)];
+    for (const match of asmLabels) {
+      if (!match[1].startsWith('.')) {
+        symbolsSet.add(match[1]);
+      }
+    }
+  }
+
+  // Fallback if no specific symbols detected
+  if (symbolsSet.size === 0) {
+    symbolsSet.add('main');
+  }
+
+  // 5. Relocations derived from current artifact (callq addresses, PLT references, relocation records)
+  const relocationsSet = new Set<string>();
+
+  // Parse callq target addresses or relocation comments from disassembly
+  const relocMatches = [...objectDisassembly.matchAll(/callq\s+([0-9a-fA-F]+|<[^>]+>)/g)];
+  for (const m of relocMatches) {
+    relocationsSet.add(`call target ${m[1]}`);
+  }
+
+  // Check for R_X86_64 relocations or library references in text
+  if (fullText.includes('printf') || fullText.includes('@PLT')) {
+    relocationsSet.add('printf (PLT relocation)');
+  }
+  if (fullText.includes('leaq') && fullText.includes('rip')) {
+    relocationsSet.add('RIP-relative symbol relocation');
+  }
+
+  if (relocationsSet.size === 0) {
+    relocationsSet.add('relative call offsets');
   }
 
   return {
     asmSample,
     machineMappings,
     sections: detectedSections,
-    symbols,
-    relocations
+    symbols: Array.from(symbolsSet),
+    relocations: Array.from(relocationsSet)
   };
 }
 

@@ -427,6 +427,110 @@ export function App() {
             </p>
           </div>
 
+          {/* Preprocessing Stage Flow Visualizer */}
+          {selectedStageId === 'preprocessing' && (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '0.5rem',
+              marginBottom: '1rem',
+              padding: '1rem',
+              backgroundColor: 'var(--bg-card)',
+              border: '1px solid var(--border-color)',
+              borderRadius: '8px',
+              overflowX: 'auto'
+            }}>
+              <div style={{
+                flex: 1,
+                padding: '0.6rem 0.8rem',
+                backgroundColor: '#0f172a',
+                border: '1px solid var(--border-color)',
+                borderRadius: '6px',
+                minWidth: '130px'
+              }}>
+                <div style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--primary)', marginBottom: '0.2rem' }}>
+                  main.c
+                </div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                  Source C Code
+                </div>
+              </div>
+
+              <ChevronRight size={16} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+
+              <div style={{
+                flex: 1,
+                padding: '0.6rem 0.8rem',
+                backgroundColor: '#0f172a',
+                border: '1px solid var(--border-color)',
+                borderRadius: '6px',
+                minWidth: '130px'
+              }}>
+                <div style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--primary)', marginBottom: '0.2rem' }}>
+                  Include Expansion
+                </div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                  #include &lt;stdio.h&gt; → Headers inserted
+                </div>
+              </div>
+
+              <ChevronRight size={16} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+
+              <div style={{
+                flex: 1,
+                padding: '0.6rem 0.8rem',
+                backgroundColor: '#0f172a',
+                border: '1px solid var(--border-color)',
+                borderRadius: '6px',
+                minWidth: '130px'
+              }}>
+                <div style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--primary)', marginBottom: '0.2rem' }}>
+                  Macro Replacement
+                </div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                  MULTIPLIER → 2
+                </div>
+              </div>
+
+              <ChevronRight size={16} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+
+              <div style={{
+                flex: 1,
+                padding: '0.6rem 0.8rem',
+                backgroundColor: '#0f172a',
+                border: '1px solid var(--border-color)',
+                borderRadius: '6px',
+                minWidth: '130px'
+              }}>
+                <div style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--primary)', marginBottom: '0.2rem' }}>
+                  Comment Removal
+                </div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                  Comments removed
+                </div>
+              </div>
+
+              <ChevronRight size={16} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+
+              <div style={{
+                flex: 1,
+                padding: '0.6rem 0.8rem',
+                backgroundColor: '#0f172a',
+                border: '1px solid var(--border-color)',
+                borderRadius: '6px',
+                minWidth: '130px'
+              }}>
+                <div style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--primary)', marginBottom: '0.2rem' }}>
+                  main.i
+                </div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                  Preprocessed C
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Raw Artifact Output File Line Viewer */}
           <div className="artifact-container">
             <div className="artifact-header">

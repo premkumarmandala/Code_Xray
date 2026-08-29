@@ -3,8 +3,7 @@ services:
   - type: web
     name: codexray-backend
     env: docker
-    rootDir: backend
-    dockerContext: backend
+    dockerContext: .
     dockerfilePath: backend/Dockerfile
     plan: free
     healthCheckPath: /health

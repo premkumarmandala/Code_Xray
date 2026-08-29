@@ -17,8 +17,10 @@ import {
   Box,
   Link,
   ShieldCheck,
-  AlertCircle
+  AlertCircle,
+  Layers
 } from 'lucide-react';
+import { CallStackModal, type DebugData } from './components/CallStackModal';
 import { COMPILATION_STAGES, SAMPLE_C_CODE } from './data/compilationData';
 import './App.css';
 
@@ -624,11 +626,19 @@ export function App() {
   ]);
   const [copied, setCopied] = useState<boolean>(false);
 
+  // Callstack modal state
+  const [showCallStack, setShowCallStack] = useState<boolean>(false);
+  const [debugData, setDebugData] = useState<DebugData | null>(null);
+  const [loadingCallStack, setLoadingCallStack] = useState<boolean>(false);
+
   // Animation controller ref
   const isAnimatingRef = useRef<boolean>(false);
 
   const selectedStageMeta = COMPILATION_STAGES.find((s) => s.id === selectedStageId) || COMPILATION_STAGES[0];
   
+  const selectedOverviewStage = OVERVIEW_STAGES.find((s) => s.targetStageId === selectedStageId) || OVERVIEW_STAGES[0];
+  const stageColor = selectedOverviewStage.color;
+
   // Resolve raw file content: prioritize backend raw file content if available, else local raw file template
   const rawFileContent = stageArtifacts[selectedStageId]?.content ?? selectedStageMeta.getArtifactContent(code);
   const currentInputFile = stageArtifacts[selectedStageId]?.inputFile ?? selectedStageMeta.inputFile;
@@ -703,6 +713,40 @@ export function App() {
   useEffect(() => {
     fetchRawBackendArtifacts(SAMPLE_C_CODE);
   }, []);
+
+  const handleOpenCallStack = async () => {
+    setShowCallStack(true);
+    setLoadingCallStack(true);
+    setDebugData(null);
+    try {
+      const response = await fetch('http://localhost:8000/api/debug/callstack', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code, filename: 'main.c', timeout: 5.0 })
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setDebugData(data);
+      } else {
+        const errData = await response.json().catch(() => null);
+        setDebugData({
+          success: false,
+          frames: [],
+          registers: {},
+          error_message: errData?.detail || `Server returned error status ${response.status}`
+        });
+      }
+    } catch (err: any) {
+      setDebugData({
+        success: false,
+        frames: [],
+        registers: {},
+        error_message: err?.message || 'Failed to connect to backend debug service.'
+      });
+    } finally {
+      setLoadingCallStack(false);
+    }
+  };
 
   const handleCopyArtifact = () => {
     navigator.clipboard.writeText(rawFileContent);
@@ -893,6 +937,15 @@ export function App() {
         </div>
 
         <div className="header-actions">
+          <button 
+            className="callstack-btn" 
+            onClick={handleOpenCallStack}
+            title="View Call Stack"
+          >
+            <Layers size={16} />
+            Call Stack
+          </button>
+
           <button 
             className="visualize-btn" 
             onClick={runVisualization}
@@ -1876,7 +1929,7 @@ export function App() {
             Run Log &amp; Stage Status
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-            <span className="terminal-stage-badge" style={{ color: selectedStageMeta.color, borderColor: `${selectedStageMeta.color}40`, background: `${selectedStageMeta.color}15` }}>
+            <span className="terminal-stage-badge" style={{ color: stageColor, borderColor: `${stageColor}40`, background: `${stageColor}15` }}>
               Active Stage: {selectedStageMeta.name}
             </span>
             <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Status: {stageArtifacts[selectedStageId]?.status || (selectedStageId === 'source' ? 'completed' : 'pending')}</span>
@@ -1897,7 +1950,7 @@ export function App() {
 
           {/* Right: Active Stage Explanation & Status Details */}
           <div className="terminal-stage-info font-mono">
-            <div className="terminal-section-label" style={{ color: selectedStageMeta.color }}>
+            <div className="terminal-section-label" style={{ color: stageColor }}>
               {selectedStageMeta.name} Summary
             </div>
             <div className="terminal-info-desc">
@@ -1911,6 +1964,15 @@ export function App() {
           </div>
         </div>
       </footer>
+
+      {showCallStack && (
+        <CallStackModal
+          code={code}
+          debugData={debugData}
+          loading={loadingCallStack}
+          onClose={() => setShowCallStack(false)}
+        />
+      )}
     </div>
   );
 }

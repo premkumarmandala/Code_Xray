@@ -2262,11 +2262,11 @@
   transition: background 0.2s ease;
 }
 
-.source-line.active-exec-line {
-  background: rgba(192, 132, 252, 0.18);
-  border-left: 3px solid #c084fc;
-  box-shadow: inset 0 0 10px rgba(192, 132, 252, 0.1);
-  animation: highlightGlow 1.5s infinite alternate;
+.source-line.active-exec-line-green {
+  background: rgba(34, 197, 94, 0.2);
+  border-left: 4px solid #22c55e;
+  box-shadow: inset 0 0 12px rgba(34, 197, 94, 0.25);
+  animation: highlightGlowGreen 1.5s infinite alternate;
 }
 
 .line-num {
@@ -2275,9 +2275,9 @@
   user-select: none;
 }
 
-.line-arrow {
+.line-arrow-green {
   width: 1.5rem;
-  color: #c084fc;
+  color: #22c55e;
   font-weight: bold;
 }
 
@@ -2312,7 +2312,7 @@
   50% { transform: translateY(3px); }
 }
 
-@keyframes highlightGlow {
-  0% { background: rgba(192, 132, 252, 0.12); }
-  100% { background: rgba(192, 132, 252, 0.28); }
+@keyframes highlightGlowGreen {
+  0% { background: rgba(34, 197, 94, 0.15); }
+  100% { background: rgba(34, 197, 94, 0.35); }
 }

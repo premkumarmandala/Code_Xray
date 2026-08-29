@@ -56,12 +56,14 @@ class CallStackFrame(BaseModel):
     function: str
     file: str
     line: Optional[int] = None
+    address: Optional[str] = None
     variables: List[CallStackVariable] = Field(default_factory=list)
 
 
 class CallStackResponse(BaseModel):
     success: bool
     frames: List[CallStackFrame] = Field(default_factory=list)
+    registers: Dict[str, str] = Field(default_factory=dict)
     errors: List[str] = Field(default_factory=list)
 
 

@@ -34,18 +34,22 @@ interface CallStackModalProps {
 }
 
 export function CallStackModal({ code, debugData, loading, onClose }: CallStackModalProps) {
-  const [selectedFrameIndex, setSelectedFrameIndex] = useState<number>(0);
+  const [selectedFrameIndex, setSelectedFrameIndex] = useState<number | null>(null);
   const [animatingFrame, setAnimatingFrame] = useState<number | null>(null);
   const [isAutoStepping, setIsAutoStepping] = useState<boolean>(false);
   const stepSpeed = 1000;
 
   const frames = debugData?.frames || [];
   
-  // Set initial selected frame to 0 when frames are loaded
+  // Set initial selected frame when frames are loaded
   useEffect(() => {
     if (frames.length > 0) {
-      setSelectedFrameIndex(frames[0].index);
-      setAnimatingFrame(frames[0].index);
+      const firstIdx = frames[0].index;
+      setSelectedFrameIndex(firstIdx);
+      setAnimatingFrame(firstIdx);
+    } else {
+      setSelectedFrameIndex(null);
+      setAnimatingFrame(null);
     }
   }, [debugData]);
 
@@ -61,8 +65,9 @@ export function CallStackModal({ code, debugData, loading, onClose }: CallStackM
     if (isAutoStepping && frames.length > 0) {
       timer = setInterval(() => {
         setSelectedFrameIndex((prev) => {
+          if (prev === null) return frames[0].index;
           const currentPos = frames.findIndex(f => f.index === prev);
-          if (currentPos >= frames.length - 1) {
+          if (currentPos < 0 || currentPos >= frames.length - 1) {
             setIsAutoStepping(false);
             return prev;
           }
@@ -77,8 +82,18 @@ export function CallStackModal({ code, debugData, loading, onClose }: CallStackM
     };
   }, [isAutoStepping, frames, stepSpeed]);
 
-  const selectedFrame = frames.find((f) => f.index === selectedFrameIndex) || frames[0];
+  const selectedFrame = frames.find((f) => f.index === selectedFrameIndex) || (frames.length > 0 ? frames[0] : null);
   const codeLines = code.split('\n');
+
+  // Scroll active line into view inside code area when selected frame changes
+  useEffect(() => {
+    if (selectedFrame?.line) {
+      const activeLineElem = document.getElementById(`stack-source-line-${selectedFrame.line}`);
+      if (activeLineElem) {
+        activeLineElem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+  }, [selectedFrameIndex, selectedFrame?.line]);
 
   return (
     <div className="callstack-modal-overlay">
@@ -202,7 +217,7 @@ export function CallStackModal({ code, debugData, loading, onClose }: CallStackM
 
               {/* Variables Table */}
               <div className="variables-section">
-                <h3 className="section-subtitle">LOCAL VARIABLES & PARAMETERS (FRAME #{selectedFrame?.index})</h3>
+                <h3 className="section-subtitle">LOCAL VARIABLES & PARAMETERS (FRAME #{selectedFrame?.index ?? '0'})</h3>
                 {selectedFrame?.variables && selectedFrame.variables.length > 0 ? (
                   <table className="variables-table">
                     <thead>
@@ -225,24 +240,28 @@ export function CallStackModal({ code, debugData, loading, onClose }: CallStackM
                     </tbody>
                   </table>
                 ) : (
-                  <div className="no-vars-msg">No local variables or parameters in Frame #{selectedFrame?.index}.</div>
+                  <div className="no-vars-msg">No local variables or parameters in Frame #{selectedFrame?.index ?? '0'}.</div>
                 )}
               </div>
 
               {/* Source Line Highlight View */}
               <div className="source-highlight-section">
                 <div className="source-title-bar">
-                  <Code2 size={16} color="var(--primary)" />
-                  <span>Source Code Execution Point ({selectedFrame?.filename})</span>
+                  <Code2 size={16} color="#22c55e" />
+                  <span>Source Code Execution Point ({selectedFrame?.filename} - Line {selectedFrame?.line || '?'})</span>
                 </div>
                 <div className="source-highlight-code">
                   {codeLines.map((lineText, lineIdx) => {
                     const lineNum = lineIdx + 1;
                     const isCurrentLine = lineNum === selectedFrame?.line;
                     return (
-                      <div key={lineIdx} className={`source-line ${isCurrentLine ? 'active-exec-line' : ''}`}>
+                      <div 
+                        key={lineIdx} 
+                        id={`stack-source-line-${lineNum}`}
+                        className={`source-line ${isCurrentLine ? 'active-exec-line-green' : ''}`}
+                      >
                         <span className="line-num">{lineNum}</span>
-                        <span className="line-arrow">{isCurrentLine ? '➔' : ' '}</span>
+                        <span className="line-arrow-green">{isCurrentLine ? '➔' : ' '}</span>
                         <span className="line-text">{lineText || ' '}</span>
                       </div>
                     );

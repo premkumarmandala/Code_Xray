@@ -784,7 +784,21 @@ export function App() {
       });
       if (response.ok) {
         const data = await response.json();
-        setDebugData(data);
+        // Transform API response frames if frame_number key is used
+        const normalizedFrames = (data.frames || []).map((f: any) => ({
+          index: f.index !== undefined ? f.index : (f.frame_number !== undefined ? f.frame_number : 0),
+          function: f.function || 'main',
+          filename: f.file || f.filename || 'main.c',
+          line: f.line,
+          address: f.address,
+          variables: f.variables || []
+        }));
+        setDebugData({
+          success: data.success,
+          frames: normalizedFrames,
+          registers: data.registers || {},
+          error_message: data.errors && data.errors.length > 0 ? data.errors.join(', ') : undefined
+        });
       } else {
         const errData = await response.json().catch(() => null);
         setDebugData({

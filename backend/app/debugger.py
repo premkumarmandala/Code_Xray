@@ -35,9 +35,21 @@ def get_type_size(type_str: str) -> Optional[int]:
     return None
 
 
-def parse_callstack_output(lldb_stdout: str) -> List[CallStackFrame]:
+def parse_registers(lldb_stdout: str) -> Dict[str, str]:
     """
-    Parses LLDB backtrace and frame variables into structured CallStackFrame objects.
+    Parses LLDB register read output into a dictionary of register name -> value string.
+    """
+    registers: Dict[str, str] = {}
+    reg_re = re.compile(r"^\s*([a-zA-Z0-9_]+)\s*=\s*(0x[0-9a-fA-F]+|\d+)", re.MULTILINE)
+    for m in reg_re.finditer(lldb_stdout):
+        reg_name, reg_val = m.groups()
+        registers[reg_name.lower()] = reg_val
+    return registers
+
+
+def parse_callstack_output(lldb_stdout: str) -> Tuple[List[CallStackFrame], Dict[str, str]]:
+    """
+    Parses LLDB backtrace, frame variables, and CPU registers into structured CallStackFrame objects and registers dict.
     All values come from actual LLDB session output without fabrication or placeholders.
     """
     frames: List[CallStackFrame] = []
@@ -51,7 +63,7 @@ def parse_callstack_output(lldb_stdout: str) -> List[CallStackFrame]:
 
     # Regex: frame #0: 0x000055555555514a main`add(a=10, b=20) at main.c:4:18
     frame_re = re.compile(
-        r"frame\s+#(?P<index>\d+):\s+(?P<address>0x[0-9a-fA-F]+)\s+[^`]+`(?P<func>[^\s(]+)(?:\(.*?\))?\s+at\s+(?P<file>[^:\n]+):(?P<line>\d+)(?::(?P<col>\d+))?",
+        r"frame\s+#(?P<index>\d+):\s+(?P<address>0x[0-9a-fA-F]+)\s+[^`]*`(?P<func>[^\s(]+)(?:\(.*?\))?\s+at\s+(?P<file>[^:\n]+):(?P<line>\d+)(?::(?P<col>\d+))?",
         re.MULTILINE
     )
 
@@ -61,6 +73,7 @@ def parse_callstack_output(lldb_stdout: str) -> List[CallStackFrame]:
         func = d["func"]
         filename = Path(d["file"]).name
         line = int(d["line"])
+        address = d.get("address")
 
         # Filter out C runtime initialization frames
         if idx in seen_indices or func.startswith("__") or "libc" in filename.lower():
@@ -73,6 +86,7 @@ def parse_callstack_output(lldb_stdout: str) -> List[CallStackFrame]:
                 function=func,
                 file=filename,
                 line=line,
+                address=address,
                 variables=[]
             )
         )
@@ -105,7 +119,8 @@ def parse_callstack_output(lldb_stdout: str) -> List[CallStackFrame]:
                 )
             target_f.variables = f_vars
 
-    return frames
+    registers = parse_registers(lldb_stdout)
+    return frames, registers
 
 
 def debug_callstack(request: CompileRequest) -> CallStackResponse:
@@ -147,20 +162,41 @@ def debug_callstack(request: CompileRequest) -> CallStackResponse:
         non_main_funcs = [f for f in target_funcs if f != "main"]
         break_target = non_main_funcs[0] if non_main_funcs else "main"
 
-        # Build LLDB batch commands
-        lldb_o_flags = [
+        # First LLDB run: get thread backtrace to discover all frame numbers
+        lldb_bt_flags = [
             "-o", f"b {break_target}",
             "-o", "r",
             "-o", "thread backtrace"
         ]
 
-        # Request variables for frames 0 to 4
-        for f_idx in range(5):
+        if is_wsl:
+            posix_path = tmp_dir.as_posix()
+            cmd_bt = [
+                toolchain.clang_cmd[0],
+                "bash",
+                "-c",
+                f"cd \"$(wslpath '{posix_path}')\" && lldb -b " + " ".join([f"'{flag}'" for flag in lldb_bt_flags]) + " ./" + exe_file
+            ]
+        else:
+            cmd_bt = ["lldb", "-b", *lldb_bt_flags, f"./{exe_file}"]
+
+        _, bt_out, _, _ = run_command(cmd_bt, cwd=tmp_dir, timeout=10.0)
+        frames_init, _ = parse_callstack_output(bt_out)
+
+        # Second LLDB run: select every discovered frame and get variables and registers
+        lldb_o_flags = [
+            "-o", f"b {break_target}",
+            "-o", "r",
+            "-o", "thread backtrace",
+            "-o", "register read rsp rbp rip rax rbx rcx rdx rsi rdi"
+        ]
+
+        frame_indices = [f.frame_number for f in frames_init] if frames_init else range(5)
+        for f_idx in frame_indices:
             lldb_o_flags.extend(["-o", f"frame select {f_idx}"])
             lldb_o_flags.extend(["-o", "frame variable -L -T"])
 
         if is_wsl:
-            posix_path = tmp_dir.as_posix()
             cmd_lldb = [
                 toolchain.clang_cmd[0],
                 "bash",
@@ -172,7 +208,7 @@ def debug_callstack(request: CompileRequest) -> CallStackResponse:
 
         code, lldb_out, lldb_err, _ = run_command(cmd_lldb, cwd=tmp_dir, timeout=10.0)
 
-        frames = parse_callstack_output(lldb_out)
+        frames, registers = parse_callstack_output(lldb_out)
 
         if not frames:
             return CallStackResponse(
@@ -183,5 +219,6 @@ def debug_callstack(request: CompileRequest) -> CallStackResponse:
         return CallStackResponse(
             success=True,
             frames=frames,
+            registers=registers,
             errors=[]
         )

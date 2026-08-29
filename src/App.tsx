@@ -1211,6 +1211,104 @@ export function App() {
           )}
 
           {/* Raw Artifact Output File Line Viewer */}
+          {/* Execution Stage Visualizer */}
+          {selectedStageId === 'execution' && (
+            <div className="object-visual-flow">
+              <div className="object-flow-title">Execution Stage Flow</div>
+
+              <div className="object-cards-wrapper">
+                {/* Step 1: Executable */}
+                <div className="object-card">
+                  <div className="object-card-header">
+                    <span className="object-step-number">Step 1</span>
+                    <span className="object-card-title">Executable</span>
+                  </div>
+                  <div className="object-card-body">
+                    <div className="object-output-target font-mono">main</div>
+                    <div className="object-card-subtext font-semibold">Binary executable</div>
+                  </div>
+                </div>
+
+                <ChevronRight size={18} className="object-arrow" />
+
+                {/* Step 2: OS Loader */}
+                <div className="object-card">
+                  <div className="object-card-header">
+                    <span className="object-step-number">Step 2</span>
+                    <span className="object-card-title">OS Loader</span>
+                  </div>
+                  <div className="object-card-body">
+                    <div className="object-card-desc">
+                      creates process and loads program
+                    </div>
+                  </div>
+                </div>
+
+                <ChevronRight size={18} className="object-arrow" />
+
+                {/* Step 3: Process Memory */}
+                <div className="object-card">
+                  <div className="object-card-header">
+                    <span className="object-step-number">Step 3</span>
+                    <span className="object-card-title">Process Memory</span>
+                  </div>
+                  <div className="object-card-body">
+                    <div className="object-sections-list font-mono" style={{ fontSize: '0.75rem' }}>
+                      <div className="object-section-item"><span className="obj-sec-name">Stack</span></div>
+                      <div className="object-section-item"><span className="obj-sec-name">Heap</span></div>
+                      <div className="object-section-item"><span className="obj-sec-name">BSS</span></div>
+                      <div className="object-section-item"><span className="obj-sec-name">Data</span></div>
+                      <div className="object-section-item"><span className="obj-sec-name">Read-only Data</span></div>
+                      <div className="object-section-item"><span className="obj-sec-name">Text/Code</span></div>
+                    </div>
+                  </div>
+                </div>
+
+                <ChevronRight size={18} className="object-arrow" />
+
+                {/* Step 4: CPU Execution */}
+                <div className="object-card">
+                  <div className="object-card-header">
+                    <span className="object-step-number">Step 4</span>
+                    <span className="object-card-title">CPU Execution</span>
+                  </div>
+                  <div className="object-card-body">
+                    <div className="object-card-desc">
+                      executes machine instructions
+                    </div>
+                  </div>
+                </div>
+
+                <ChevronRight size={18} className="object-arrow" />
+
+                {/* Step 5: stdout */}
+                <div className="object-card object-card-target">
+                  <div className="object-card-header">
+                    <span className="object-step-number">Step 5</span>
+                    <span className="object-card-title">stdout</span>
+                  </div>
+                  <div className="object-card-body">
+                    <div className="object-output-target font-mono" style={{ fontSize: '0.8rem', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+                      {(() => {
+                        const startIdx = rawFileContent.indexOf('Program Standard Output (stdout)');
+                        const endIdx = rawFileContent.indexOf('Process Metadata');
+                        if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
+                          const section = rawFileContent.substring(startIdx + 'Program Standard Output (stdout)'.length, endIdx);
+                          const lines = section.split('\n').map(l => l.replace(/^[-=]+/, '').trim()).filter(Boolean);
+                          return lines.join('\n') || rawFileContent;
+                        } else if (startIdx !== -1) {
+                          const section = rawFileContent.substring(startIdx + 'Program Standard Output (stdout)'.length);
+                          const lines = section.split('\n').map(l => l.replace(/^[-=]+/, '').trim()).filter(Boolean);
+                          return lines.join('\n') || rawFileContent;
+                        }
+                        return rawFileContent;
+                      })()}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
           <div className="artifact-container">
             <div className="artifact-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>

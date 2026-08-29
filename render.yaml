@@ -12,13 +12,11 @@ services:
       - key: PORT
         value: 8000
 
-  # 2. Frontend Web Service (Vite + React Static Site)
-  - type: web
+  # 2. Frontend Static Site (Vite + React)
+  - type: static
     name: codexray-frontend
-    env: static
     buildCommand: npm install && npm run build
     staticPublishPath: ./dist
-    plan: free
     envVars:
       - key: VITE_API_URL
         value: https://codexray-backend.onrender.com

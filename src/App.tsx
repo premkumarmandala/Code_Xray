@@ -12,10 +12,36 @@ import {
   Zap, 
   ChevronRight,
   FileCode,
-  FileText
+  FileText,
+  Cpu,
+  Box,
+  Link,
+  ShieldCheck,
+  AlertCircle
 } from 'lucide-react';
 import { COMPILATION_STAGES, SAMPLE_C_CODE } from './data/compilationData';
 import './App.css';
+
+interface OverviewStage {
+  id: string;
+  name: string;
+  targetStageId: string;
+  icon: React.ElementType;
+  color: string;
+  glowColor: string;
+  description: string;
+}
+
+const OVERVIEW_STAGES: OverviewStage[] = [
+  { id: 'source', name: 'Source', targetStageId: 'source', icon: FileCode, color: '#38bdf8', glowColor: 'rgba(56, 189, 248, 0.5)', description: 'Human-readable C source code containing statements, macros, and includes.' },
+  { id: 'preprocessing', name: 'Preprocessing', targetStageId: 'preprocessing', icon: FileText, color: '#60a5fa', glowColor: 'rgba(96, 165, 250, 0.5)', description: 'Expands headers (#include), replaces macros (#define), and strips comments.' },
+  { id: 'llvm_ir', name: 'LLVM IR', targetStageId: 'llvm_ir', icon: Cpu, color: '#c084fc', glowColor: 'rgba(192, 132, 252, 0.5)', description: 'Translates C code into architecture-independent intermediate representation.' },
+  { id: 'assembly', name: 'Assembly', targetStageId: 'assembly', icon: Terminal, color: '#f472b6', glowColor: 'rgba(244, 114, 182, 0.5)', description: 'Lowers LLVM IR to target CPU assembly instructions (e.g. x86_64).' },
+  { id: 'object_code', name: 'Object Code', targetStageId: 'object_code', icon: Box, color: '#fbbf24', glowColor: 'rgba(251, 191, 36, 0.5)', description: 'Assembles text assembly into binary relocatable object code (.o file).' },
+  { id: 'linking', name: 'Linking', targetStageId: 'linking', icon: Link, color: '#fb923c', glowColor: 'rgba(251, 146, 60, 0.5)', description: 'Combines object files with system C runtime libraries & resolves symbols.' },
+  { id: 'executable', name: 'Executable', targetStageId: 'linking', icon: ShieldCheck, color: '#06b6d4', glowColor: 'rgba(6, 182, 212, 0.5)', description: 'Final linked machine binary ready to be loaded by the operating system.' },
+  { id: 'execution', name: 'Execution', targetStageId: 'execution', icon: Play, color: '#4ade80', glowColor: 'rgba(74, 222, 128, 0.5)', description: 'OS loads binary into virtual memory; CPU executes machine instructions.' }
+];
 
 interface StageArtifactState {
   inputFile: string;
@@ -708,6 +734,18 @@ export function App() {
     setIsVisualizing(true);
     isAnimatingRef.current = true;
     
+    // Reset stage statuses to pending except source
+    const initialRunArtifacts: Record<string, StageArtifactState> = {};
+    COMPILATION_STAGES.forEach((s) => {
+      initialRunArtifacts[s.id] = {
+        inputFile: stageArtifacts[s.id]?.inputFile || s.inputFile,
+        outputFile: stageArtifacts[s.id]?.outputFile || s.outputFile,
+        content: stageArtifacts[s.id]?.content || s.getArtifactContent(code),
+        status: s.id === 'source' ? 'completed' : 'pending'
+      };
+    });
+    setStageArtifacts(initialRunArtifacts);
+
     setLogs(['[Pipeline Started] Initiating C compilation pipeline...']);
 
     // Call backend API first
@@ -730,6 +768,7 @@ export function App() {
         const bKey = stageKeyMap[stage.id];
         const bData = backendData.stages[bKey];
 
+        // Step 1: Active running state for overview & side panel
         setSelectedStageId(stage.id);
 
         setStageArtifacts((prev) => ({
@@ -742,7 +781,7 @@ export function App() {
 
         setLogs((prev) => [...prev, stage.terminalOutput]);
 
-        await new Promise((resolve) => setTimeout(resolve, 800));
+        await new Promise((resolve) => setTimeout(resolve, 600));
         if (!isAnimatingRef.current) break;
 
         if (bData && bData.status === 'success') {
@@ -800,7 +839,7 @@ export function App() {
 
         setLogs((prev) => [...prev, stage.terminalOutput]);
 
-        await new Promise((resolve) => setTimeout(resolve, 800));
+        await new Promise((resolve) => setTimeout(resolve, 600));
 
         if (!isAnimatingRef.current) break;
 
@@ -843,23 +882,16 @@ export function App() {
       {/* Header */}
       <header className="app-header">
         <div className="brand-section">
-          <Zap className="brand-icon" />
+          <div className="brand-icon-wrapper">
+            <Zap className="brand-icon" />
+          </div>
           <div>
             <h1 className="brand-title">CodeXRay</h1>
-            <p className="brand-subtitle">Interactive C Compilation Pipeline Visualizer for Students</p>
+            <p className="brand-subtitle">C Compilation Visualizer</p>
           </div>
         </div>
 
         <div className="header-actions">
-          <button 
-            className="reset-btn" 
-            onClick={handleReset}
-            title="Reset Pipeline"
-          >
-            <RotateCcw size={16} />
-            Reset
-          </button>
-          
           <button 
             className="visualize-btn" 
             onClick={runVisualization}
@@ -868,32 +900,144 @@ export function App() {
             {isVisualizing ? (
               <>
                 <Loader2 size={18} className="spinner" />
-                Visualizing...
+                Running...
               </>
             ) : (
               <>
-                <Play size={18} />
-                Visualize Compilation
+                <Play size={18} fill="currentColor" />
+                Run
               </>
             )}
+          </button>
+
+          <button 
+            className="reset-btn" 
+            onClick={handleReset}
+            title="Reset Pipeline"
+          >
+            <RotateCcw size={16} />
+            Reset
           </button>
         </div>
       </header>
 
-      {/* Horizontal Stage Indicator */}
+      {/* Compilation Pipeline Overview & What's Happening Container */}
+      <div className="top-overview-container">
+        {/* Compilation Pipeline (Overview) Panel */}
+        <section className="overview-pipeline-panel">
+          <div className="overview-header">
+            <div className="overview-title-group">
+              <h2 className="overview-title">Compilation Pipeline (Overview)</h2>
+              <span className="overview-badge">
+                {isVisualizing ? 'Compiling...' : `Progress: ${progressPercent}%`}
+              </span>
+            </div>
+            {isVisualizing && (
+              <div className="pipeline-status">
+                <span className="pipeline-status-dot" />
+                Processing stage...
+              </div>
+            )}
+          </div>
+
+          <div className="overview-progress-track">
+            <div className="overview-progress-fill" style={{ width: `${progressPercent}%` }} />
+          </div>
+
+          <div className="overview-stages-grid">
+            {OVERVIEW_STAGES.map((stg, index) => {
+              const mappedStageId = stg.targetStageId;
+              const currentStatus = stageArtifacts[mappedStageId]?.status || (mappedStageId === 'source' ? 'completed' : 'pending');
+              const isSelected = selectedStageId === mappedStageId || (stg.id === 'executable' && selectedStageId === 'linking');
+              const Icon = stg.icon;
+              const hasError = stageArtifacts[mappedStageId]?.status === 'error';
+
+              let statusClass = currentStatus;
+              if (stg.id === 'executable') {
+                const linkingStatus = stageArtifacts['linking']?.status || 'pending';
+                statusClass = linkingStatus;
+              }
+
+              return (
+                <React.Fragment key={stg.id}>
+                  <div 
+                    className={`overview-stage-card ${statusClass} ${isSelected ? 'selected' : ''}`}
+                    onClick={() => setSelectedStageId(mappedStageId)}
+                    style={{
+                      '--stage-accent': stg.color,
+                      '--stage-glow': stg.glowColor
+                    } as React.CSSProperties}
+                  >
+                    <div className="overview-icon-container">
+                      <Icon size={18} className="overview-stage-icon" />
+                      {statusClass === 'completed' && (
+                        <div className="overview-status-badge success">
+                          <Check size={10} />
+                        </div>
+                      )}
+                      {statusClass === 'running' && (
+                        <div className="overview-status-badge running">
+                          <Loader2 size={10} className="spinner" />
+                        </div>
+                      )}
+                      {hasError && (
+                        <div className="overview-status-badge error">
+                          <AlertCircle size={10} />
+                        </div>
+                      )}
+                    </div>
+                    <span className="overview-stage-name">{stg.name}</span>
+                  </div>
+
+                  {index < OVERVIEW_STAGES.length - 1 && (
+                    <div className={`overview-connector ${statusClass === 'completed' ? 'completed' : ''} ${statusClass === 'running' ? 'active' : ''}`}>
+                      <ChevronRight size={14} />
+                    </div>
+                  )}
+                </React.Fragment>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* WHAT'S HAPPENING? Side Panel */}
+        <section className="whats-happening-panel">
+          <div className="whats-happening-header">
+            <h2 className="whats-happening-title">WHAT'S HAPPENING?</h2>
+            <span className="whats-happening-sub">Live Stage Explanations</span>
+          </div>
+
+          <div className="whats-happening-list">
+            {OVERVIEW_STAGES.map((stg) => {
+              const mappedStageId = stg.targetStageId;
+              const isSelected = selectedStageId === mappedStageId || (stg.id === 'executable' && selectedStageId === 'linking');
+              const currentStatus = stageArtifacts[mappedStageId]?.status || (mappedStageId === 'source' ? 'completed' : 'pending');
+              const Icon = stg.icon;
+
+              return (
+                <div 
+                  key={stg.id}
+                  className={`whats-happening-item ${isSelected ? 'active' : ''} ${currentStatus}`}
+                  onClick={() => setSelectedStageId(mappedStageId)}
+                  style={{ '--stage-accent': stg.color } as React.CSSProperties}
+                >
+                  <div className="item-header">
+                    <Icon size={14} style={{ color: stg.color, flexShrink: 0 }} />
+                    <span className="item-name">{stg.name}</span>
+                    {isSelected && <span className="item-active-tag">Active</span>}
+                  </div>
+                  <p className="item-desc">{stg.description}</p>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      </div>
+
+      {/* Detailed Stages Navigation */}
       <nav className="pipeline-container">
         <div className="pipeline-header">
-          <div className="pipeline-title">Compilation Stages (Select any stage to inspect output artifacts line-by-line)</div>
-          {isVisualizing && (
-            <div className="pipeline-status">
-              <span className="pipeline-status-dot" />
-              Flowing through stage... ({progressPercent}%)
-            </div>
-          )}
-        </div>
-
-        <div className="pipeline-progress-bar">
-          <div className="pipeline-progress-fill" style={{ width: `${progressPercent}%` }} />
+          <div className="pipeline-title">Compilation Stages (Select stage for detailed inspection)</div>
         </div>
 
         <div className="pipeline-steps">

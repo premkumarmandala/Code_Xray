@@ -876,17 +876,23 @@ export function App() {
                       <span className="llvm-card-title">Semantic Analysis</span>
                     </div>
                     <div className="llvm-card-body">
-                      <div className="semantic-checks">
-                        <div className={llvmData.semanticChecks.typesChecked ? 'check-pass' : 'check-fail'}>
-                          {llvmData.semanticChecks.typesChecked ? '✓ Types checked' : '✕ Type check failed'}
+                      {hasError ? (
+                        <div className="check-fail" style={{ fontSize: '0.72rem', wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>
+                          {rawFileContent}
                         </div>
-                        <div className={llvmData.semanticChecks.symbolsResolved ? 'check-pass' : 'check-fail'}>
-                          {llvmData.semanticChecks.symbolsResolved ? '✓ Variables/functions resolved' : '✕ Symbol resolution failed'}
+                      ) : (
+                        <div className="semantic-checks">
+                          <div className={llvmData.semanticChecks.typesChecked ? 'check-pass' : 'check-fail'}>
+                            {llvmData.semanticChecks.typesChecked ? '✓ Types checked' : '✕ Type check failed'}
+                          </div>
+                          <div className={llvmData.semanticChecks.symbolsResolved ? 'check-pass' : 'check-fail'}>
+                            {llvmData.semanticChecks.symbolsResolved ? '✓ Variables/functions resolved' : '✕ Symbol resolution failed'}
+                          </div>
+                          <div className={llvmData.semanticChecks.validReturnType ? 'check-pass' : 'check-fail'}>
+                            {llvmData.semanticChecks.validReturnType ? '✓ Valid return type' : '✕ Return type invalid'}
+                          </div>
                         </div>
-                        <div className={llvmData.semanticChecks.validReturnType ? 'check-pass' : 'check-fail'}>
-                          {llvmData.semanticChecks.validReturnType ? '✓ Valid return type' : '✕ Return type invalid'}
-                        </div>
-                      </div>
+                      )}
                     </div>
                   </div>
 
@@ -899,8 +905,12 @@ export function App() {
                       <span className="llvm-card-title">LLVM IR</span>
                     </div>
                     <div className="llvm-card-body">
-                      <div className="llvm-output-target font-mono">main.ll</div>
-                      <div className="llvm-card-desc">SSA Intermediate Representation generated below.</div>
+                      <div className="llvm-output-target font-mono" style={hasError ? { color: '#ef4444' } : undefined}>
+                        {hasError ? 'LLVM IR not generated' : 'main.ll'}
+                      </div>
+                      <div className="llvm-card-desc">
+                        {hasError ? 'Compilation failed during frontend processing.' : 'SSA Intermediate Representation generated below.'}
+                      </div>
                     </div>
                   </div>
                 </div>

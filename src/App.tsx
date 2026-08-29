@@ -39,7 +39,7 @@ const OVERVIEW_STAGES: OverviewStage[] = [
   { id: 'assembly', name: 'Assembly', targetStageId: 'assembly', icon: Terminal, color: '#f472b6', glowColor: 'rgba(244, 114, 182, 0.5)', description: 'Lowers LLVM IR to target CPU assembly instructions (e.g. x86_64).' },
   { id: 'object_code', name: 'Object Code', targetStageId: 'object_code', icon: Box, color: '#fbbf24', glowColor: 'rgba(251, 191, 36, 0.5)', description: 'Assembles text assembly into binary relocatable object code (.o file).' },
   { id: 'linking', name: 'Linking', targetStageId: 'linking', icon: Link, color: '#fb923c', glowColor: 'rgba(251, 146, 60, 0.5)', description: 'Combines object files with system C runtime libraries & resolves symbols.' },
-  { id: 'executable', name: 'Executable', targetStageId: 'linking', icon: ShieldCheck, color: '#06b6d4', glowColor: 'rgba(6, 182, 212, 0.5)', description: 'Final linked machine binary ready to be loaded by the operating system.' },
+  { id: 'executable', name: 'Executable', targetStageId: 'executable', icon: ShieldCheck, color: '#06b6d4', glowColor: 'rgba(6, 182, 212, 0.5)', description: 'Final linked machine binary ready to be loaded by the operating system.' },
   { id: 'execution', name: 'Execution', targetStageId: 'execution', icon: Play, color: '#4ade80', glowColor: 'rgba(74, 222, 128, 0.5)', description: 'OS loads binary into virtual memory; CPU executes machine instructions.' }
 ];
 
@@ -656,6 +656,7 @@ export function App() {
             assembly: 'assembly',
             object_code: 'object_code',
             linking: 'linking',
+            executable: 'linking',
             execution: 'execution'
           };
 
@@ -948,20 +949,19 @@ export function App() {
             {OVERVIEW_STAGES.map((stg, index) => {
               const mappedStageId = stg.targetStageId;
               const currentStatus = stageArtifacts[mappedStageId]?.status || (mappedStageId === 'source' ? 'completed' : 'pending');
-              const isSelected = selectedStageId === mappedStageId || (stg.id === 'executable' && selectedStageId === 'linking');
+              const isSelected = selectedStageId === mappedStageId;
               const Icon = stg.icon;
               const hasError = stageArtifacts[mappedStageId]?.status === 'error';
 
-              let statusClass = currentStatus;
-              if (stg.id === 'executable') {
-                const linkingStatus = stageArtifacts['linking']?.status || 'pending';
-                statusClass = linkingStatus;
-              }
+              const hasPriorError = OVERVIEW_STAGES.slice(0, index).some(
+                (prev) => stageArtifacts[prev.targetStageId]?.status === 'error'
+              );
+              const isNotReached = currentStatus === 'pending' && hasPriorError;
 
               return (
                 <React.Fragment key={stg.id}>
                   <div 
-                    className={`overview-stage-card ${statusClass} ${isSelected ? 'selected' : ''}`}
+                    className={`overview-stage-card ${isNotReached ? 'not-reached' : currentStatus} ${isSelected ? 'selected' : ''}`}
                     onClick={() => setSelectedStageId(mappedStageId)}
                     style={{
                       '--stage-accent': stg.color,
@@ -970,12 +970,12 @@ export function App() {
                   >
                     <div className="overview-icon-container">
                       <Icon size={18} className="overview-stage-icon" />
-                      {statusClass === 'completed' && (
+                      {currentStatus === 'completed' && !isNotReached && (
                         <div className="overview-status-badge success">
                           <Check size={10} />
                         </div>
                       )}
-                      {statusClass === 'running' && (
+                      {currentStatus === 'running' && (
                         <div className="overview-status-badge running">
                           <Loader2 size={10} className="spinner" />
                         </div>
@@ -987,10 +987,13 @@ export function App() {
                       )}
                     </div>
                     <span className="overview-stage-name">{stg.name}</span>
+                    <span className="overview-stage-status-sub">
+                      {isNotReached ? 'Not reached' : currentStatus}
+                    </span>
                   </div>
 
                   {index < OVERVIEW_STAGES.length - 1 && (
-                    <div className={`overview-connector ${statusClass === 'completed' ? 'completed' : ''} ${statusClass === 'running' ? 'active' : ''}`}>
+                    <div className={`overview-connector ${currentStatus === 'completed' ? 'completed' : ''} ${currentStatus === 'running' ? 'active' : ''}`}>
                       <ChevronRight size={14} />
                     </div>
                   )}
@@ -1010,7 +1013,7 @@ export function App() {
           <div className="whats-happening-list">
             {OVERVIEW_STAGES.map((stg) => {
               const mappedStageId = stg.targetStageId;
-              const isSelected = selectedStageId === mappedStageId || (stg.id === 'executable' && selectedStageId === 'linking');
+              const isSelected = selectedStageId === mappedStageId;
               const currentStatus = stageArtifacts[mappedStageId]?.status || (mappedStageId === 'source' ? 'completed' : 'pending');
               const Icon = stg.icon;
 
@@ -1033,52 +1036,6 @@ export function App() {
           </div>
         </section>
       </div>
-
-      {/* Detailed Stages Navigation */}
-      <nav className="pipeline-container">
-        <div className="pipeline-header">
-          <div className="pipeline-title">Compilation Stages (Select stage for detailed inspection)</div>
-        </div>
-
-        <div className="pipeline-steps">
-          {COMPILATION_STAGES.map((stage, index) => {
-            const currentStatus = stageArtifacts[stage.id]?.status || (stage.id === 'source' ? 'completed' : 'pending');
-            const isSelected = stage.id === selectedStageId;
-            const hasPriorError = COMPILATION_STAGES.slice(0, index).some(
-              (s) => stageArtifacts[s.id]?.status === 'error'
-            );
-            const isNotReached = currentStatus === 'pending' && hasPriorError;
-            const nextStageStatus = stageArtifacts[COMPILATION_STAGES[index + 1]?.id]?.status;
-
-            return (
-              <React.Fragment key={stage.id}>
-                <div 
-                  className={`stage-card ${currentStatus} ${isSelected ? 'selected' : ''}`}
-                  onClick={() => setSelectedStageId(stage.id)}
-                >
-                  <div className="stage-info">
-                    <span className="stage-number">{isNotReached ? 'Not reached' : `Stage ${index + 1}`}</span>
-                    <span className="stage-name">{stage.name}</span>
-                  </div>
-                  <div className="stage-icon-badge">
-                    {currentStatus === 'completed' && <Check size={14} className="check-pop" />}
-                    {currentStatus === 'running' && <Loader2 size={14} className="spinner" />}
-                    {currentStatus === 'pending' && !isNotReached && <span style={{ fontSize: '10px' }}>{index + 1}</span>}
-                    {currentStatus === 'error' && <span style={{ fontSize: '10px', color: '#ef4444' }}>✕</span>}
-                  </div>
-                </div>
-
-                {index < COMPILATION_STAGES.length - 1 && (
-                  <div className={`arrow-divider ${nextStageStatus === 'completed' || nextStageStatus === 'running' ? 'active' : ''} ${currentStatus === 'running' ? 'pulse-flow' : ''}`}>
-                    <span className="flow-dot" />
-                    <ChevronRight size={18} />
-                  </div>
-                )}
-              </React.Fragment>
-            );
-          })}
-        </div>
-      </nav>
 
       {/* Main Workspace Split Grid */}
       <main className="main-workspace-grid">
@@ -1486,11 +1443,11 @@ export function App() {
                 <div className="object-flow-title">Object Code Assembler Pipeline</div>
 
                 <div className="object-cards-wrapper">
-                  {/* Step 1: Assembly (main.s) */}
+                  {/* Step 1: main.s */}
                   <div className="object-card">
                     <div className="object-card-header">
                       <span className="object-step-number">Step 1</span>
-                      <span className="object-card-title">Assembly (main.s)</span>
+                      <span className="object-card-title">main.s</span>
                     </div>
                     <div className="object-card-body">
                       <div className="object-card-desc">Current assembly instructions:</div>
@@ -1540,11 +1497,11 @@ export function App() {
 
                   <ChevronRight size={18} className="object-arrow" />
 
-                  {/* Step 4: Sections / Symbols / Relocations */}
+                  {/* Step 4: Sections/Symbols/Relocations */}
                   <div className="object-card">
                     <div className="object-card-header">
                       <span className="object-step-number">Step 4</span>
-                      <span className="object-card-title">Sections / Symbols</span>
+                      <span className="object-card-title">Sections/Symbols/Relocations</span>
                     </div>
                     <div className="object-card-body">
                       <div className="object-card-label">Active Sections:</div>
@@ -1565,11 +1522,11 @@ export function App() {
 
                   <ChevronRight size={18} className="object-arrow" />
 
-                  {/* Step 5: Object File (main.o) */}
+                  {/* Step 5: main.o */}
                   <div className="object-card object-card-target">
                     <div className="object-card-header">
                       <span className="object-step-number">Step 5</span>
-                      <span className="object-card-title">Object File</span>
+                      <span className="object-card-title">main.o</span>
                     </div>
                     <div className="object-card-body">
                       <div className="object-output-target font-mono">main.o</div>
@@ -1606,11 +1563,11 @@ export function App() {
                 <div className="object-flow-title">Linking Stage Flow</div>
 
                 <div className="object-cards-wrapper">
-                  {/* Step 1: Object File */}
+                  {/* Step 1: main.o */}
                   <div className="object-card">
                     <div className="object-card-header">
                       <span className="object-step-number">Step 1</span>
-                      <span className="object-card-title">Object File</span>
+                      <span className="object-card-title">main.o</span>
                     </div>
                     <div className="object-card-body">
                       <div className="object-output-target font-mono">{linkData.inputObjectFile}</div>
@@ -1663,11 +1620,11 @@ export function App() {
 
                   <ChevronRight size={18} className="object-arrow" />
 
-                  {/* Step 4: Libraries */}
+                  {/* Step 4: Libraries/Dynamic Linking */}
                   <div className="object-card">
                     <div className="object-card-header">
                       <span className="object-step-number">Step 4</span>
-                      <span className="object-card-title">Libraries</span>
+                      <span className="object-card-title">Libraries/Dynamic Linking</span>
                     </div>
                     <div className="object-card-body">
                       <div className="object-card-subtext font-semibold">Dynamic Linking</div>
@@ -1727,7 +1684,7 @@ export function App() {
                   </div>
                   <div className="object-card-body">
                     <div className="object-card-desc">
-                      creates process and loads program
+                      Creates process, allocates virtual address space &amp; maps ELF sections into memory.
                     </div>
                   </div>
                 </div>
@@ -1741,13 +1698,14 @@ export function App() {
                     <span className="object-card-title">Process Memory</span>
                   </div>
                   <div className="object-card-body">
-                    <div className="object-sections-list font-mono" style={{ fontSize: '0.75rem' }}>
-                      <div className="object-section-item"><span className="obj-sec-name">Stack</span></div>
-                      <div className="object-section-item"><span className="obj-sec-name">Heap</span></div>
-                      <div className="object-section-item"><span className="obj-sec-name">BSS</span></div>
-                      <div className="object-section-item"><span className="obj-sec-name">Data</span></div>
-                      <div className="object-section-item"><span className="obj-sec-name">Read-only Data</span></div>
-                      <div className="object-section-item"><span className="obj-sec-name">Text/Code</span></div>
+                    <div className="object-card-label">Virtual Address Space:</div>
+                    <div className="object-sections-list font-mono" style={{ fontSize: '0.72rem' }}>
+                      <div className="object-section-item"><span className="obj-sec-name">Stack</span><span className="obj-sec-desc">→ local vars, frames</span></div>
+                      <div className="object-section-item"><span className="obj-sec-name">Heap</span><span className="obj-sec-desc">→ dynamic memory</span></div>
+                      <div className="object-section-item"><span className="obj-sec-name">BSS</span><span className="obj-sec-desc">→ uninitialized global data</span></div>
+                      <div className="object-section-item"><span className="obj-sec-name">Data</span><span className="obj-sec-desc">→ initialized global data</span></div>
+                      <div className="object-section-item"><span className="obj-sec-name">Read-only Data</span><span className="obj-sec-desc">→ string literals, constants</span></div>
+                      <div className="object-section-item"><span className="obj-sec-name">Text/Code</span><span className="obj-sec-desc">→ machine instructions</span></div>
                     </div>
                   </div>
                 </div>
@@ -1762,8 +1720,17 @@ export function App() {
                   </div>
                   <div className="object-card-body">
                     <div className="object-card-desc">
-                      executes machine instructions
+                      CPU executes machine code starting at entry point (_start / main).
                     </div>
+                    {(() => {
+                      const exitMatch = rawFileContent.match(/Exit Code:\s*(\d+)/i) || rawFileContent.match(/exit code\s*(\d+)/i);
+                      const exitCode = exitMatch ? exitMatch[1] : '0';
+                      return (
+                        <div className="object-meta-box" style={{ marginTop: '0.4rem' }}>
+                          <div><span className="obj-meta-tag">Exit Status:</span> Process exited with code {exitCode}</div>
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
 
@@ -1821,25 +1788,127 @@ export function App() {
               ))}
             </div>
           </div>
+
+          {/* Dedicated Run Log Panel below stage output */}
+          <div className="run-log-panel">
+            <div className="run-log-header">
+              <div className="run-log-title">
+                <Terminal size={16} style={{ color: 'var(--primary)' }} />
+                <span>Run Log</span>
+              </div>
+              <div className="run-log-status-badge">
+                {(() => {
+                  const hasError = COMPILATION_STAGES.some((s) => stageArtifacts[s.id]?.status === 'error');
+                  const allCompleted = COMPILATION_STAGES.every(
+                    (s) => (stageArtifacts[s.id]?.status || (s.id === 'source' ? 'completed' : 'pending')) === 'completed'
+                  );
+                  if (hasError) {
+                    return <span className="status-badge-err"><AlertCircle size={12} /> Pipeline Failed</span>;
+                  }
+                  if (allCompleted) {
+                    return <span className="status-badge-succ"><Check size={12} /> Pipeline Succeeded</span>;
+                  }
+                  if (isVisualizing) {
+                    return <span className="status-badge-run"><Loader2 size={12} className="spinner" /> Running</span>;
+                  }
+                  return <span className="status-badge-idle">Idle</span>;
+                })()}
+              </div>
+            </div>
+
+            <div className="run-log-content font-mono">
+              <div className="run-log-stage-messages">
+                <div className="run-log-section-title">Stage Completion Messages:</div>
+                {COMPILATION_STAGES.map((s, idx) => {
+                  const status = stageArtifacts[s.id]?.status || (s.id === 'source' ? 'completed' : 'pending');
+                  const hasPriorError = COMPILATION_STAGES.slice(0, idx).some(
+                    (prevStage) => stageArtifacts[prevStage.id]?.status === 'error'
+                  );
+                  const isNotReached = status === 'pending' && hasPriorError;
+
+                  return (
+                    <div key={s.id} className={`run-log-stage-item ${isNotReached ? 'not-reached' : status}`}>
+                      <span className="stage-item-name">{s.name}:</span>
+                      {status === 'completed' && <span className="stage-item-status succ">✓ Completed</span>}
+                      {status === 'running' && <span className="stage-item-status run">⏳ Running...</span>}
+                      {status === 'error' && <span className="stage-item-status err">✕ Failed</span>}
+                      {status === 'pending' && (
+                        isNotReached ? (
+                          <span className="stage-item-status pending">⊘ Not reached</span>
+                        ) : (
+                          <span className="stage-item-status pending">○ Pending</span>
+                        )
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="run-log-final-status">
+                <span className="run-log-section-title">Final Result: </span>
+                {(() => {
+                  const hasError = COMPILATION_STAGES.some((s) => stageArtifacts[s.id]?.status === 'error');
+                  const allCompleted = COMPILATION_STAGES.every(
+                    (s) => (stageArtifacts[s.id]?.status || (s.id === 'source' ? 'completed' : 'pending')) === 'completed'
+                  );
+                  if (hasError) {
+                    return <span className="final-status-text err">Failed with Errors</span>;
+                  }
+                  if (allCompleted) {
+                    return <span className="final-status-text succ">Success (All stages completed)</span>;
+                  }
+                  if (isVisualizing) {
+                    return <span className="final-status-text run">In Progress...</span>;
+                  }
+                  return <span className="final-status-text idle">Ready</span>;
+                })()}
+              </div>
+            </div>
+          </div>
         </section>
       </main>
 
-      {/* Bottom Panel: Output / Terminal Section */}
+      {/* Bottom Panel: Output / Terminal & Active Stage Status */}
       <footer className="terminal-panel">
         <div className="terminal-header">
           <div className="terminal-title">
-            <Terminal size={16} />
-            Output / Pipeline Terminal Logs
+            <Terminal size={16} style={{ color: 'var(--primary)' }} />
+            Run Log &amp; Stage Status
           </div>
-          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Status: Active</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+            <span className="terminal-stage-badge" style={{ color: selectedStageMeta.color, borderColor: `${selectedStageMeta.color}40`, background: `${selectedStageMeta.color}15` }}>
+              Active Stage: {selectedStageMeta.name}
+            </span>
+            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Status: {stageArtifacts[selectedStageId]?.status || (selectedStageId === 'source' ? 'completed' : 'pending')}</span>
+          </div>
         </div>
-        <div className="terminal-body">
-          {logs.map((log, idx) => (
-            <div key={idx} className="terminal-line">
-              <span className="terminal-prompt">&gt;</span>
-              {log}
+        
+        <div className="terminal-split-view">
+          {/* Left: Compact Run Log */}
+          <div className="terminal-body">
+            <div className="terminal-section-label">Execution &amp; Compilation Log</div>
+            {logs.map((log, idx) => (
+              <div key={idx} className="terminal-line">
+                <span className="terminal-prompt">&gt;</span>
+                {log}
+              </div>
+            ))}
+          </div>
+
+          {/* Right: Active Stage Explanation & Status Details */}
+          <div className="terminal-stage-info font-mono">
+            <div className="terminal-section-label" style={{ color: selectedStageMeta.color }}>
+              {selectedStageMeta.name} Summary
             </div>
-          ))}
+            <div className="terminal-info-desc">
+              {selectedStageMeta.explanation}
+            </div>
+            <div className="terminal-info-meta">
+              <div><span className="info-meta-label">Input File:</span> {currentInputFile}</div>
+              <div><span className="info-meta-label">Output Target:</span> {currentOutputFile}</div>
+              <div><span className="info-meta-label">Stage Status:</span> <span style={{ textTransform: 'capitalize', color: (stageArtifacts[selectedStageId]?.status === 'completed' || selectedStageId === 'source') ? '#4ade80' : stageArtifacts[selectedStageId]?.status === 'running' ? '#38bdf8' : '#94a3b8' }}>{stageArtifacts[selectedStageId]?.status || (selectedStageId === 'source' ? 'completed' : 'pending')}</span></div>
+            </div>
+          </div>
         </div>
       </footer>
     </div>

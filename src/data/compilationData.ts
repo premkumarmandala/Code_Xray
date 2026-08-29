@@ -203,7 +203,7 @@ Disassembly of section .text:
     id: 'linking',
     name: 'Linking',
     inputFile: 'main.o, crt1.o, libc.so',
-    outputFile: 'main.exe (or ./main)',
+    outputFile: 'main',
     explanation: 'The linker combines object files with C runtime standard libraries (libc), resolves external symbols like printf@PLT, and calculates final executable virtual memory offsets.',
     getArtifactContent: () => `[Linker Map & ELF Executable Summary]
 Binary Type: ELF 64-bit LSB executable (dynamically linked)
@@ -219,9 +219,30 @@ Executable layout successfully constructed.`,
     terminalOutput: '[Linking] clang main.o -lc -o main\n[Linking] Resolved external references. ELF executable constructed.'
   },
   {
+    id: 'executable',
+    name: 'Executable',
+    inputFile: 'main.o',
+    outputFile: 'main',
+    explanation: 'Final linked machine binary (ELF format on Linux). Contains entry point (_start), mapped loadable segments (text, data, rodata), and dynamic linking instructions ready for OS execution.',
+    getArtifactContent: () => `[ELF Executable Binary Summary]
+Class: ELF64
+Data: 2's complement, little endian
+Type: DYN (Position-Independent Executable file)
+Machine: Advanced Micro Devices x86-64
+Entry point address: 0x401050
+Start of program headers: 64 (bytes into file)
+Number of program headers: 11
+
+Loadable Segments:
+  - LOAD 0x0000000000000000 R E (Text / Executable instructions)
+  - LOAD 0x0000000000002000 R   (Read-only Data / Constants)
+  - LOAD 0x0000000000003000 RW  (Data / Writable variables)`,
+    terminalOutput: '[Executable] ELF 64-bit binary created and verified. Permissions set to executable (rwxr-xr-x).'
+  },
+  {
     id: 'execution',
     name: 'Execution',
-    inputFile: 'main.exe',
+    inputFile: 'main',
     outputFile: 'stdout / Process Return Code',
     explanation: 'The Operating System kernel loads the executable file into virtual memory, sets up stack and heap segments, initializes the program counter (PC) to _start, and runs the CPU instructions.',
     getArtifactContent: () => `Result: 30`,

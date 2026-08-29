@@ -887,16 +887,85 @@
   color: var(--text-muted);
 }
 
+.terminal-stage-badge {
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.terminal-split-view {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  background-color: #050811;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+@media (max-width: 900px) {
+  .terminal-split-view {
+    grid-template-columns: 1fr;
+  }
+}
+
+.terminal-section-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  margin-bottom: 0.4rem;
+}
+
 .terminal-body {
-  padding: 0.85rem 1rem;
+  padding: 0.75rem 1rem;
   background-color: #050811;
   font-family: var(--font-mono);
-  font-size: 0.82rem;
-  line-height: 1.6;
+  font-size: 0.8rem;
+  line-height: 1.5;
   color: #a7f3d0;
-  min-height: 100px;
-  max-height: 180px;
+  min-height: 110px;
+  max-height: 160px;
   overflow-y: auto;
+  border-right: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.terminal-stage-info {
+  padding: 0.75rem 1rem;
+  background-color: rgba(15, 23, 42, 0.5);
+  font-size: 0.78rem;
+  line-height: 1.45;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.terminal-info-desc {
+  color: #cbd5e1;
+  font-size: 0.75rem;
+  margin-bottom: 0.5rem;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.terminal-info-meta {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  font-size: 0.7rem;
+  color: #94a3b8;
+  padding-top: 0.4rem;
+  border-top: 1px dashed rgba(255, 255, 255, 0.1);
+}
+
+.info-meta-label {
+  color: var(--text-muted);
+  margin-right: 0.2rem;
+}
 }
 
 .terminal-line {
@@ -1464,4 +1533,155 @@
   flex-shrink: 0;
   width: 14px;
   height: 14px;
+}
+
+/* Run Log Panel below stage output */
+.run-log-panel {
+  display: flex;
+  flex-direction: column;
+  background-color: #0b1329;
+  border-top: 1px solid var(--border-color);
+  padding: 0.85rem 1rem;
+  gap: 0.6rem;
+}
+
+.run-log-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.run-log-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #f8fafc;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.run-log-status-badge {
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.status-badge-succ {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: #4ade80;
+  background: rgba(74, 222, 128, 0.1);
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  border: 1px solid rgba(74, 222, 128, 0.3);
+}
+
+.status-badge-err {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: #f87171;
+  background: rgba(248, 113, 113, 0.1);
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  border: 1px solid rgba(248, 113, 113, 0.3);
+}
+
+.status-badge-run {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.1);
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  border: 1px solid rgba(56, 189, 248, 0.3);
+}
+
+.status-badge-idle {
+  color: #94a3b8;
+  background: #1e293b;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  border: 1px solid #334155;
+}
+
+.run-log-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  background-color: #050811;
+  border: 1px solid #1e293b;
+  border-radius: 6px;
+  padding: 0.65rem 0.85rem;
+  font-size: 0.78rem;
+}
+
+.run-log-section-title {
+  font-weight: 600;
+  color: #94a3b8;
+  font-size: 0.72rem;
+  margin-bottom: 0.25rem;
+}
+
+.run-log-stage-messages {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.run-log-stage-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.stage-item-name {
+  color: #cbd5e1;
+  min-width: 110px;
+}
+
+.stage-item-status.succ {
+  color: #4ade80;
+}
+
+.stage-item-status.run {
+  color: #38bdf8;
+}
+
+.stage-item-status.err {
+  color: #f87171;
+}
+
+.stage-item-status.pending {
+  color: #64748b;
+}
+
+.run-log-final-status {
+  padding-top: 0.4rem;
+  border-top: 1px dashed #1e293b;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.final-status-text.succ {
+  color: #4ade80;
+  font-weight: 700;
+}
+
+.final-status-text.err {
+  color: #f87171;
+  font-weight: 700;
+}
+
+.final-status-text.run {
+  color: #38bdf8;
+  font-weight: 700;
+}
+
+.final-status-text.idle {
+  color: #94a3b8;
 }

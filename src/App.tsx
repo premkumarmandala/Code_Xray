@@ -1144,121 +1144,108 @@ export function App() {
             const hasMoreMacros = detectedMacros.length > 3;
 
             return (
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: '0.5rem',
-                marginBottom: '1rem',
-                padding: '1rem',
-                backgroundColor: 'var(--bg-card)',
-                border: '1px solid var(--border-color)',
-                borderRadius: '8px',
-                overflowX: 'auto'
-              }}>
-                <div style={{
-                  flex: 1,
-                  padding: '0.6rem 0.8rem',
-                  backgroundColor: '#0f172a',
-                  border: '1px solid var(--border-color)',
-                  borderRadius: '6px',
-                  minWidth: '130px'
-                }}>
-                  <div style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--primary)', marginBottom: '0.2rem' }}>
-                    main.c
-                  </div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                    Source C Code
-                  </div>
-                </div>
+              <div className="llvm-visual-flow">
+                <div className="llvm-flow-title">Preprocessing Flow Pipeline</div>
 
-                <ChevronRight size={16} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
-
-                <div style={{
-                  flex: 1,
-                  padding: '0.6rem 0.8rem',
-                  backgroundColor: '#0f172a',
-                  border: '1px solid var(--border-color)',
-                  borderRadius: '6px',
-                  minWidth: '130px'
-                }}>
-                  <div style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--primary)', marginBottom: '0.2rem' }}>
-                    Include Expansion
+                <div className="llvm-cards-wrapper">
+                  {/* Step 1: Source Input main.c */}
+                  <div className="llvm-card">
+                    <div className="llvm-card-header">
+                      <span className="llvm-step-number">Step 1</span>
+                      <span className="llvm-card-title">main.c</span>
+                    </div>
+                    <div className="llvm-card-body">
+                      <div className="llvm-card-desc">Original high-level source code file with directives.</div>
+                      <div className="llvm-card-subtext font-mono">Input File</div>
+                    </div>
                   </div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                    {displayIncludes.length === 0 ? (
-                      <div>No includes</div>
-                    ) : (
-                      <>
-                        {displayIncludes.map((inc, i) => (
-                          <div key={i}>{inc}</div>
-                        ))}
-                        {hasMoreIncludes && <div>+{detectedIncludes.length - 3} more</div>}
-                      </>
-                    )}
-                  </div>
-                </div>
 
-                <ChevronRight size={16} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                  <ChevronRight size={18} className="llvm-arrow" />
 
-                <div style={{
-                  flex: 1,
-                  padding: '0.6rem 0.8rem',
-                  backgroundColor: '#0f172a',
-                  border: '1px solid var(--border-color)',
-                  borderRadius: '6px',
-                  minWidth: '130px'
-                }}>
-                  <div style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--primary)', marginBottom: '0.2rem' }}>
-                    Macro Replacement
+                  {/* Step 2: Include Expansion */}
+                  <div className="llvm-card">
+                    <div className="llvm-card-header">
+                      <span className="llvm-step-number">Step 2</span>
+                      <span className="llvm-card-title">Include Expansion</span>
+                    </div>
+                    <div className="llvm-card-body">
+                      <div className="llvm-card-desc">Replaces <code>#include</code> directives with header contents.</div>
+                      <div className="llvm-card-label" style={{ marginTop: '0.2rem' }}>Headers:</div>
+                      {displayIncludes.length === 0 ? (
+                        <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>No headers included</div>
+                      ) : (
+                        <div className="token-pills-grid">
+                          {displayIncludes.map((inc, i) => (
+                            <span key={i} className="token-pill">{inc}</span>
+                          ))}
+                          {hasMoreIncludes && <span className="token-pill">+{detectedIncludes.length - 3}</span>}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                    {displayMacros.length === 0 ? (
-                      <div>No macros</div>
-                    ) : (
-                      <>
-                        {displayMacros.map((mac, i) => (
-                          <div key={i}>{mac}</div>
-                        ))}
-                        {hasMoreMacros && <div>+{detectedMacros.length - 3} more</div>}
-                      </>
-                    )}
-                  </div>
-                </div>
 
-                <ChevronRight size={16} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                  <ChevronRight size={18} className="llvm-arrow" />
 
-                <div style={{
-                  flex: 1,
-                  padding: '0.6rem 0.8rem',
-                  backgroundColor: '#0f172a',
-                  border: '1px solid var(--border-color)',
-                  borderRadius: '6px',
-                  minWidth: '130px'
-                }}>
-                  <div style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--primary)', marginBottom: '0.2rem' }}>
-                    Comment Removal
+                  {/* Step 3: Macro Replacement */}
+                  <div className="llvm-card">
+                    <div className="llvm-card-header">
+                      <span className="llvm-step-number">Step 3</span>
+                      <span className="llvm-card-title">Macro Replacement</span>
+                    </div>
+                    <div className="llvm-card-body">
+                      <div className="llvm-card-desc">Expands <code>#define</code> macros &amp; processes conditionals.</div>
+                      <div className="llvm-card-label" style={{ marginTop: '0.2rem' }}>Macros:</div>
+                      {displayMacros.length === 0 ? (
+                        <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>No macros defined</div>
+                      ) : (
+                        <div className="token-pills-grid">
+                          {displayMacros.map((mac, i) => (
+                            <span key={i} className="token-pill">{mac}</span>
+                          ))}
+                          {hasMoreMacros && <span className="token-pill">+{detectedMacros.length - 3}</span>}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                    Comments removed
-                  </div>
-                </div>
 
-                <ChevronRight size={16} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                  <ChevronRight size={18} className="llvm-arrow" />
 
-                <div style={{
-                  flex: 1,
-                  padding: '0.6rem 0.8rem',
-                  backgroundColor: '#0f172a',
-                  border: '1px solid var(--border-color)',
-                  borderRadius: '6px',
-                  minWidth: '130px'
-                }}>
-                  <div style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--primary)', marginBottom: '0.2rem' }}>
-                    main.i
+                  {/* Step 4: Comment Removal */}
+                  <div className="llvm-card">
+                    <div className="llvm-card-header">
+                      <span className="llvm-step-number">Step 4</span>
+                      <span className="llvm-card-title">Comment Removal</span>
+                    </div>
+                    <div className="llvm-card-body">
+                      <div className="llvm-card-desc">Strips single-line <code>//</code> and block <code>/* */</code> comments, replacing them with whitespace.</div>
+                    </div>
                   </div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                    Preprocessed C
+
+                  <ChevronRight size={18} className="llvm-arrow" />
+
+                  {/* Step 5: Line Markers */}
+                  <div className="llvm-card">
+                    <div className="llvm-card-header">
+                      <span className="llvm-step-number">Step 5</span>
+                      <span className="llvm-card-title">Line Markers</span>
+                    </div>
+                    <div className="llvm-card-body">
+                      <div className="llvm-card-desc">Inserts <code># linenum "file"</code> directives to track original source lines for compiler diagnostics.</div>
+                    </div>
+                  </div>
+
+                  <ChevronRight size={18} className="llvm-arrow" />
+
+                  {/* Step 6: Output main.i */}
+                  <div className="llvm-card llvm-card-target">
+                    <div className="llvm-card-header">
+                      <span className="llvm-step-number">Step 6</span>
+                      <span className="llvm-card-title">main.i</span>
+                    </div>
+                    <div className="llvm-card-body">
+                      <div className="llvm-output-target font-mono">main.i</div>
+                      <div className="llvm-card-desc">Fully preprocessed C translation unit generated below.</div>
+                    </div>
                   </div>
                 </div>
               </div>

@@ -1294,11 +1294,11 @@ export function App() {
 
                   <ChevronRight size={18} className="llvm-arrow" />
 
-                  {/* Step 3: Parsing / AST */}
+                  {/* Step 3: Parsing/AST */}
                   <div className="llvm-card">
                     <div className="llvm-card-header">
                       <span className="llvm-step-number">Step 3</span>
-                      <span className="llvm-card-title">Parsing / AST</span>
+                      <span className="llvm-card-title">Parsing/AST</span>
                     </div>
                     <div className="llvm-card-body">
                       <div className="ast-tag">Simplified AST Representation</div>

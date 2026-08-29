@@ -844,7 +844,17 @@ export function App() {
               outputFile: bData.output_file || stage.outputFile,
               content: extractedContent || stage.getArtifactContent(code),
               status: 'completed'
-            }
+            },
+            ...(stage.id === 'execution' ? {
+              executable: {
+                ...(prev['executable'] || {
+                  inputFile: COMPILATION_STAGES.find((s) => s.id === 'executable')?.inputFile || 'main.o',
+                  outputFile: COMPILATION_STAGES.find((s) => s.id === 'executable')?.outputFile || 'main',
+                  content: COMPILATION_STAGES.find((s) => s.id === 'executable')?.getArtifactContent(code) || ''
+                }),
+                status: 'completed'
+              }
+            } : {})
           }));
 
           if (stage.id === 'execution') {
@@ -888,15 +898,25 @@ export function App() {
 
         if (!isAnimatingRef.current) break;
 
-        setStageArtifacts((prev) => ({
-          ...prev,
-          [stage.id]: {
-            inputFile: stage.inputFile,
-            outputFile: stage.outputFile,
-            content: stage.getArtifactContent(code),
-            status: 'completed'
-          }
-        }));
+          setStageArtifacts((prev) => ({
+            ...prev,
+            [stage.id]: {
+              inputFile: stage.inputFile,
+              outputFile: stage.outputFile,
+              content: stage.getArtifactContent(code),
+              status: 'completed'
+            },
+            ...(stage.id === 'execution' ? {
+              executable: {
+                ...(prev['executable'] || {
+                  inputFile: COMPILATION_STAGES.find((s) => s.id === 'executable')?.inputFile || 'main.o',
+                  outputFile: COMPILATION_STAGES.find((s) => s.id === 'executable')?.outputFile || 'main',
+                  content: COMPILATION_STAGES.find((s) => s.id === 'executable')?.getArtifactContent(code) || ''
+                }),
+                status: 'completed'
+              }
+            } : {})
+          }));
       }
     }
 
@@ -917,10 +937,12 @@ export function App() {
   const runningCount = COMPILATION_STAGES.filter(
     (s) => stageArtifacts[s.id]?.status === 'running'
   ).length;
-  const progressPercent = Math.min(
-    100,
-    Math.round(((completedCount + (runningCount ? 0.5 : 0)) / COMPILATION_STAGES.length) * 100)
-  );
+  const progressPercent = stageArtifacts['execution']?.status === 'completed'
+    ? 100
+    : Math.min(
+        100,
+        Math.round(((completedCount + (runningCount ? 0.5 : 0)) / COMPILATION_STAGES.length) * 100)
+      );
 
   return (
     <div className="app-container">

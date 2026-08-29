@@ -379,7 +379,26 @@ def run_pipeline(request: CompileRequest) -> CompileResponse:
 
         clean_stdout = sanitize_path(out, tmp_dir)
         clean_stderr = sanitize_path(err, tmp_dir)
-        execution_output = clean_stdout
+        execution_output = clean_stdout if clean_stdout else clean_stderr
+
+        # Format complete execution summary with stdout, stderr, and exit code
+        exec_summary_lines = []
+        if clean_stdout:
+            exec_summary_lines.append("=== Program Standard Output (stdout) ===")
+            exec_summary_lines.append(clean_stdout.rstrip("\r\n"))
+        if clean_stderr:
+            exec_summary_lines.append("=== Program Standard Error (stderr) ===")
+            exec_summary_lines.append(clean_stderr.rstrip("\r\n"))
+
+        if not exec_summary_lines:
+            exec_summary_lines.append("=== Program Execution ===")
+            exec_summary_lines.append("[Process executed successfully and produced no standard output]")
+
+        exec_summary_lines.append("\n=== Process Metadata ===")
+        exec_summary_lines.append(f"Exit Code: {code}")
+        exec_summary_lines.append(f"Execution Time: {dur} ms")
+
+        display_content = "\n".join(exec_summary_lines)
 
         if code == 0:
             stages_dict["execution"] = StageResult(
@@ -387,7 +406,7 @@ def run_pipeline(request: CompileRequest) -> CompileResponse:
                 status="success",
                 input_file=exe_file,
                 output_file="stdout",
-                content=clean_stdout,
+                content=display_content,
                 stdout=clean_stdout,
                 stderr=clean_stderr,
                 exit_code=code,

@@ -51,7 +51,7 @@ export function App() {
   const rawFileLines = rawFileContent.split('\n');
 
   // Trigger backend fetch for raw files when code changes or app mounts
-  const fetchRawBackendArtifacts = async (sourceCode: string) => {
+  const fetchRawBackendArtifacts = async (sourceCode: string): Promise<any> => {
     try {
       const response = await fetch('http://localhost:8000/api/compile', {
         method: 'POST',
@@ -78,10 +78,13 @@ export function App() {
             const bData = data.stages[bKey];
 
             if (bData && bData.status === 'success') {
-              let contentText = bData.content || '';
+              let contentText = bData.content;
               if (stage.id === 'object_code' && bData.representation) {
                 contentText = bData.representation.disassembly || contentText;
+              } else if (stage.id === 'execution') {
+                contentText = bData.content || bData.stdout || data.output || 'Process executed successfully with exit code 0.';
               }
+
               newArtifacts[stage.id] = {
                 inputFile: bData.input_file || stage.inputFile,
                 outputFile: bData.output_file || stage.outputFile,
@@ -99,15 +102,13 @@ export function App() {
           });
 
           setStageArtifacts(newArtifacts);
-          setLogs((prev) => [
-            ...prev,
-            '[Compiler API] Loaded raw Clang artifacts for all compilation stages.'
-          ]);
+          return data;
         }
       }
     } catch {
       // Offline fallback
     }
+    return null;
   };
 
   // Fetch initial raw artifacts on mount
@@ -148,91 +149,78 @@ export function App() {
     
     setLogs(['[Pipeline Started] Initiating C compilation pipeline...']);
 
-    // Call backend API
-    let backendSuccess = false;
-    try {
-      const response = await fetch('http://localhost:8000/api/compile', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code: code, filename: 'main.c', timeout: 5.0 })
-      });
+    // Call backend API first
+    const backendData = await fetchRawBackendArtifacts(code);
+    const stageKeyMap: Record<string, string> = {
+      source: 'source',
+      preprocessing: 'preprocessing',
+      llvm_ir: 'llvm_ir',
+      assembly: 'assembly',
+      object_code: 'object_code',
+      linking: 'linking',
+      execution: 'execution'
+    };
 
-      if (response.ok) {
-        const data = await response.json();
-        if (data && data.stages) {
-          backendSuccess = true;
-          
-          const stageKeyMap: Record<string, string> = {
-            source: 'source',
-            preprocessing: 'preprocessing',
-            llvm_ir: 'llvm_ir',
-            assembly: 'assembly',
-            object_code: 'object_code',
-            linking: 'linking',
-            execution: 'execution'
-          };
+    if (backendData && backendData.stages) {
+      for (let i = 0; i < COMPILATION_STAGES.length; i++) {
+        if (!isAnimatingRef.current) break;
 
-          for (let i = 0; i < COMPILATION_STAGES.length; i++) {
-            if (!isAnimatingRef.current) break;
-            const stage = COMPILATION_STAGES[i];
-            const backendStageKey = stageKeyMap[stage.id];
-            const backendStageData = data.stages[backendStageKey];
+        const stage = COMPILATION_STAGES[i];
+        const bKey = stageKeyMap[stage.id];
+        const bData = backendData.stages[bKey];
 
-            setSelectedStageId(stage.id);
+        setSelectedStageId(stage.id);
 
-            setStageArtifacts((prev) => ({
-              ...prev,
-              [stage.id]: {
-                inputFile: stage.inputFile,
-                outputFile: stage.outputFile,
-                content: prev[stage.id]?.content || stage.getArtifactContent(code),
-                status: 'running'
-              }
-            }));
-
-            setLogs((prev) => [...prev, stage.terminalOutput]);
-
-            await new Promise((resolve) => setTimeout(resolve, 800));
-            if (!isAnimatingRef.current) break;
-
-            if (backendStageData && backendStageData.status === 'success') {
-              let extractedContent = backendStageData.content || '';
-              if (stage.id === 'object_code' && backendStageData.representation) {
-                extractedContent = backendStageData.representation.disassembly || extractedContent;
-              }
-
-              setStageArtifacts((prev) => ({
-                ...prev,
-                [stage.id]: {
-                  inputFile: backendStageData.input_file || stage.inputFile,
-                  outputFile: backendStageData.output_file || stage.outputFile,
-                  content: extractedContent || stage.getArtifactContent(code),
-                  status: 'completed'
-                }
-              }));
-            } else if (backendStageData && backendStageData.status === 'error') {
-              setStageArtifacts((prev) => ({
-                ...prev,
-                [stage.id]: {
-                  ...prev[stage.id],
-                  content: backendStageData.stderr || 'Compilation error occurred at this stage.',
-                  status: 'error'
-                }
-              }));
-              setLogs((prev) => [...prev, `[Error] ${backendStageData.stderr}`]);
-              break;
-            }
+        setStageArtifacts((prev) => ({
+          ...prev,
+          [stage.id]: {
+            ...prev[stage.id],
+            status: 'running'
           }
+        }));
+
+        setLogs((prev) => [...prev, stage.terminalOutput]);
+
+        await new Promise((resolve) => setTimeout(resolve, 800));
+        if (!isAnimatingRef.current) break;
+
+        if (bData && bData.status === 'success') {
+          let extractedContent = bData.content;
+          if (stage.id === 'object_code' && bData.representation) {
+            extractedContent = bData.representation.disassembly || extractedContent;
+          } else if (stage.id === 'execution') {
+            extractedContent = bData.content || bData.stdout || backendData.output || 'Process executed successfully with exit code 0.';
+          }
+
+          setStageArtifacts((prev) => ({
+            ...prev,
+            [stage.id]: {
+              inputFile: bData.input_file || stage.inputFile,
+              outputFile: bData.output_file || stage.outputFile,
+              content: extractedContent || stage.getArtifactContent(code),
+              status: 'completed'
+            }
+          }));
+
+          if (stage.id === 'execution') {
+            const cleanPrint = (bData.stdout || extractedContent).trim();
+            setLogs((prev) => [...prev, `[Program Output] ${cleanPrint}`]);
+          }
+        } else if (bData && bData.status === 'error') {
+          setStageArtifacts((prev) => ({
+            ...prev,
+            [stage.id]: {
+              ...prev[stage.id],
+              content: bData.stderr || 'Compilation error occurred at this stage.',
+              status: 'error'
+            }
+          }));
+          setLogs((prev) => [...prev, `[Error] ${bData.stderr}`]);
+          break;
         }
       }
-    } catch {
-      setLogs((prev) => [
-        ...prev,
-        '[Notice] Backend API offline. Showing client-generated raw files.'
-      ]);
-    }
-
-    if (!backendSuccess) {
+    } else {
+      // Client-side fallback animation
       for (let i = 0; i < COMPILATION_STAGES.length; i++) {
         if (!isAnimatingRef.current) break;
 
@@ -270,7 +258,7 @@ export function App() {
     if (isAnimatingRef.current) {
       setLogs((prev) => [
         ...prev,
-        '[Pipeline Complete] Raw compilation artifact files generated and ready!'
+        '[Pipeline Complete] All compilation stages generated and output captured successfully!'
       ]);
     }
 
@@ -322,7 +310,7 @@ export function App() {
 
       {/* Horizontal Stage Indicator */}
       <nav className="pipeline-container">
-        <div className="pipeline-title">Compilation Stages (Select any stage to inspect raw output file line-by-line)</div>
+        <div className="pipeline-title">Compilation Stages (Select any stage to inspect output artifacts line-by-line)</div>
         <div className="pipeline-steps">
           {COMPILATION_STAGES.map((stage, index) => {
             const currentStatus = stageArtifacts[stage.id]?.status || (stage.id === 'source' ? 'completed' : 'pending');
@@ -396,7 +384,7 @@ export function App() {
                 Input: <span>{currentInputFile}</span>
               </div>
               <div className="file-badge">
-                Output Raw File: <span>{currentOutputFile}</span>
+                {selectedStageId === 'execution' ? 'Target Output:' : 'Output Raw File:'} <span>{currentOutputFile}</span>
               </div>
             </div>
           </div>
@@ -414,11 +402,15 @@ export function App() {
             <div className="artifact-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                 <FileText size={15} color="var(--primary)" />
-                <span>Raw File: <strong>{currentOutputFile}</strong> ({rawFileLines.length} lines)</span>
+                <span>
+                  {selectedStageId === 'execution' 
+                    ? `Program Execution Output (stdout): (${rawFileLines.length} lines)`
+                    : `Raw File: ${currentOutputFile} (${rawFileLines.length} lines)`}
+                </span>
               </div>
               <button className="copy-btn" onClick={handleCopyArtifact}>
                 {copied ? <CheckCheck size={14} color="#22c55e" /> : <Copy size={14} />}
-                {copied ? 'Copied Raw Text' : 'Copy Raw File'}
+                {copied ? 'Copied' : 'Copy Output'}
               </button>
             </div>
             <div className="artifact-code-wrapper">

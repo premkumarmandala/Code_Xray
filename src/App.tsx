@@ -1122,6 +1122,94 @@ export function App() {
             );
           })()}
 
+          {/* Linking Stage Visualizer */}
+          {selectedStageId === 'linking' && (
+            <div className="object-visual-flow">
+              <div className="object-flow-title">Linking Stage Flow</div>
+
+              <div className="object-cards-wrapper">
+                {/* Step 1: Object File */}
+                <div className="object-card">
+                  <div className="object-card-header">
+                    <span className="object-step-number">Step 1</span>
+                    <span className="object-card-title">Object File</span>
+                  </div>
+                  <div className="object-card-body">
+                    <div className="object-output-target font-mono">main.o</div>
+                    <div className="object-card-subtext font-semibold">Relocatable object file</div>
+                    <div className="object-card-desc">
+                      External reference: <span className="font-mono">printf</span>
+                    </div>
+                  </div>
+                </div>
+
+                <ChevronRight size={18} className="object-arrow" />
+
+                {/* Step 2: Symbol Resolution */}
+                <div className="object-card">
+                  <div className="object-card-header">
+                    <span className="object-step-number">Step 2</span>
+                    <span className="object-card-title">Symbol Resolution</span>
+                  </div>
+                  <div className="object-card-body">
+                    <div className="object-card-desc font-mono" style={{ fontSize: '0.75rem' }}>
+                      <div><span style={{ color: 'var(--primary)' }}>main/add</span> → defined in main.o</div>
+                      <div><span style={{ color: 'var(--primary)' }}>printf</span> → resolved through runtime/library linkage</div>
+                    </div>
+                  </div>
+                </div>
+
+                <ChevronRight size={18} className="object-arrow" />
+
+                {/* Step 3: Relocations */}
+                <div className="object-card">
+                  <div className="object-card-header">
+                    <span className="object-step-number">Step 3</span>
+                    <span className="object-card-title">Relocations</span>
+                  </div>
+                  <div className="object-card-body">
+                    <div className="object-card-desc">
+                      Linker adjusts addresses and offsets after final placement.
+                    </div>
+                  </div>
+                </div>
+
+                <ChevronRight size={18} className="object-arrow" />
+
+                {/* Step 4: Libraries */}
+                <div className="object-card">
+                  <div className="object-card-header">
+                    <span className="object-step-number">Step 4</span>
+                    <span className="object-card-title">Libraries</span>
+                  </div>
+                  <div className="object-card-body">
+                    <div className="object-card-subtext font-semibold">Dynamic Linking</div>
+                    <div className="object-card-desc">
+                      libc provides <span className="font-mono">printf</span> at runtime
+                    </div>
+                  </div>
+                </div>
+
+                <ChevronRight size={18} className="object-arrow" />
+
+                {/* Step 5: Executable */}
+                <div className="object-card object-card-target">
+                  <div className="object-card-header">
+                    <span className="object-step-number">Step 5</span>
+                    <span className="object-card-title">Executable</span>
+                  </div>
+                  <div className="object-card-body">
+                    <div className="object-output-target font-mono">main</div>
+                    <div className="object-card-subtext font-semibold">Linked executable</div>
+                    <div className="object-card-desc">
+                      Ready for OS loading
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Raw Artifact Output File Line Viewer */}
           <div className="artifact-container">
             <div className="artifact-header">

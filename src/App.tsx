@@ -266,6 +266,17 @@ export function App() {
     isAnimatingRef.current = false;
   };
 
+  const completedCount = COMPILATION_STAGES.filter(
+    (s) => (stageArtifacts[s.id]?.status || (s.id === 'source' ? 'completed' : 'pending')) === 'completed'
+  ).length;
+  const runningCount = COMPILATION_STAGES.filter(
+    (s) => stageArtifacts[s.id]?.status === 'running'
+  ).length;
+  const progressPercent = Math.min(
+    100,
+    Math.round(((completedCount + (runningCount ? 0.5 : 0)) / COMPILATION_STAGES.length) * 100)
+  );
+
   return (
     <div className="app-container">
       {/* Header */}
@@ -310,7 +321,20 @@ export function App() {
 
       {/* Horizontal Stage Indicator */}
       <nav className="pipeline-container">
-        <div className="pipeline-title">Compilation Stages (Select any stage to inspect output artifacts line-by-line)</div>
+        <div className="pipeline-header">
+          <div className="pipeline-title">Compilation Stages (Select any stage to inspect output artifacts line-by-line)</div>
+          {isVisualizing && (
+            <div className="pipeline-status">
+              <span className="pipeline-status-dot" />
+              Flowing through stage... ({progressPercent}%)
+            </div>
+          )}
+        </div>
+
+        <div className="pipeline-progress-bar">
+          <div className="pipeline-progress-fill" style={{ width: `${progressPercent}%` }} />
+        </div>
+
         <div className="pipeline-steps">
           {COMPILATION_STAGES.map((stage, index) => {
             const currentStatus = stageArtifacts[stage.id]?.status || (stage.id === 'source' ? 'completed' : 'pending');
@@ -319,6 +343,7 @@ export function App() {
               (s) => stageArtifacts[s.id]?.status === 'error'
             );
             const isNotReached = currentStatus === 'pending' && hasPriorError;
+            const nextStageStatus = stageArtifacts[COMPILATION_STAGES[index + 1]?.id]?.status;
 
             return (
               <React.Fragment key={stage.id}>
@@ -331,7 +356,7 @@ export function App() {
                     <span className="stage-name">{stage.name}</span>
                   </div>
                   <div className="stage-icon-badge">
-                    {currentStatus === 'completed' && <Check size={14} />}
+                    {currentStatus === 'completed' && <Check size={14} className="check-pop" />}
                     {currentStatus === 'running' && <Loader2 size={14} className="spinner" />}
                     {currentStatus === 'pending' && !isNotReached && <span style={{ fontSize: '10px' }}>{index + 1}</span>}
                     {currentStatus === 'error' && <span style={{ fontSize: '10px', color: '#ef4444' }}>✕</span>}
@@ -339,7 +364,8 @@ export function App() {
                 </div>
 
                 {index < COMPILATION_STAGES.length - 1 && (
-                  <div className={`arrow-divider ${stageArtifacts[COMPILATION_STAGES[index + 1].id]?.status === 'completed' ? 'active' : ''}`}>
+                  <div className={`arrow-divider ${nextStageStatus === 'completed' || nextStageStatus === 'running' ? 'active' : ''} ${currentStatus === 'running' ? 'pulse-flow' : ''}`}>
+                    <span className="flow-dot" />
                     <ChevronRight size={18} />
                   </div>
                 )}

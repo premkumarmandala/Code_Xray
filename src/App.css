@@ -102,6 +102,14 @@
   border-radius: 12px;
   padding: 1rem;
   overflow-x: auto;
+  position: relative;
+}
+
+.pipeline-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
 }
 
 .pipeline-title {
@@ -109,8 +117,46 @@
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--text-muted);
-  margin-bottom: 0.75rem;
   font-weight: 600;
+}
+
+.pipeline-status {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.78rem;
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.pipeline-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--primary);
+  box-shadow: 0 0 8px var(--primary);
+  animation: pulse-dot 1s infinite alternate;
+}
+
+@keyframes pulse-dot {
+  from { opacity: 0.4; transform: scale(0.9); }
+  to { opacity: 1; transform: scale(1.15); }
+}
+
+.pipeline-progress-bar {
+  width: 100%;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 2px;
+  margin-bottom: 0.85rem;
+  overflow: hidden;
+}
+
+.pipeline-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #0284c7 0%, #38bdf8 50%, #22c55e 100%);
+  transition: width 0.4s ease-in-out;
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.5);
 }
 
 .pipeline-steps {
@@ -130,35 +176,49 @@
   border: 1px solid var(--border-color);
   border-radius: 8px;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), 
+              border-color 0.25s ease, 
+              background-color 0.25s ease, 
+              box-shadow 0.25s ease;
   position: relative;
   user-select: none;
+  overflow: hidden;
 }
 
 .stage-card:hover {
   border-color: var(--primary);
   background: #1e293b;
+  transform: translateY(-2px);
 }
 
 .stage-card.selected {
   border-color: var(--primary);
   background: rgba(56, 189, 248, 0.08);
-  box-shadow: 0 0 12px rgba(56, 189, 248, 0.2);
+  box-shadow: 0 0 16px rgba(56, 189, 248, 0.25);
 }
 
 .stage-card.completed {
   border-color: var(--accent-green);
+  box-shadow: 0 0 10px rgba(34, 197, 94, 0.15);
 }
 
 .stage-card.running {
-  border-color: var(--accent-amber);
-  animation: pulse-border 1.2s infinite ease-in-out;
+  border-color: var(--primary);
+  background: rgba(56, 189, 248, 0.12);
+  transform: scale(1.03);
+  box-shadow: 0 0 20px rgba(56, 189, 248, 0.4);
+  animation: stage-glow 1.2s infinite ease-in-out alternate;
 }
 
-@keyframes pulse-border {
-  0% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.4); }
-  70% { box-shadow: 0 0 0 8px rgba(245, 158, 11, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+@keyframes stage-glow {
+  0% {
+    box-shadow: 0 0 8px rgba(56, 189, 248, 0.3), inset 0 0 8px rgba(56, 189, 248, 0.1);
+    border-color: var(--primary);
+  }
+  100% {
+    box-shadow: 0 0 22px rgba(56, 189, 248, 0.6), inset 0 0 16px rgba(56, 189, 248, 0.25);
+    border-color: #60a5fa;
+  }
 }
 
 .stage-info {
@@ -184,26 +244,76 @@
   height: 24px;
   border-radius: 50%;
   background: #334155;
+  transition: all 0.3s ease;
 }
 
 .stage-card.completed .stage-icon-badge {
   background: var(--accent-green);
   color: white;
+  transform: scale(1.05);
+}
+
+.check-pop {
+  animation: pop-in 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes pop-in {
+  0% { transform: scale(0) rotate(-45deg); opacity: 0; }
+  100% { transform: scale(1) rotate(0deg); opacity: 1; }
 }
 
 .stage-card.running .stage-icon-badge {
-  background: var(--accent-amber);
-  color: black;
+  background: var(--primary);
+  color: #0f172a;
 }
 
 .arrow-divider {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   color: var(--border-color);
   font-size: 1.2rem;
   font-weight: bold;
+  transition: color 0.3s ease;
 }
 
 .arrow-divider.active {
   color: var(--accent-green);
+}
+
+.arrow-divider.pulse-flow {
+  color: var(--primary);
+}
+
+.flow-dot {
+  display: none;
+}
+
+.arrow-divider.pulse-flow .flow-dot {
+  display: block;
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--primary);
+  box-shadow: 0 0 8px var(--primary);
+  animation: particle-flow 0.8s infinite linear;
+}
+
+@keyframes particle-flow {
+  0% {
+    opacity: 0;
+    transform: translateX(-12px) scale(0.6);
+  }
+  50% {
+    opacity: 1;
+    transform: translateX(0px) scale(1.2);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(12px) scale(0.6);
+  }
 }
 
 /* Main Split View */

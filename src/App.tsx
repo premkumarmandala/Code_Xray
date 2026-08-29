@@ -66,6 +66,64 @@ function getMacros(sourceCode: string): string[] {
   return macros;
 }
 
+interface LlvmVisualData {
+  tokens: string[];
+  ast: {
+    functionName: string;
+    returnType: string;
+    params: string[];
+    bodyStatements: string[];
+    returnValue: string;
+  };
+  semanticChecks: {
+    typesChecked: boolean;
+    symbolsResolved: boolean;
+    validReturnType: boolean;
+  };
+}
+
+function extractLlvmVisualData(sourceCode: string, hasError: boolean): LlvmVisualData {
+  // Strip comments and preprocessor lines for basic token extraction
+  const cleanLines = sourceCode
+    .split('\n')
+    .filter(line => !line.trim().startsWith('#'))
+    .join('\n')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/\/\/.*/g, '');
+
+  // Extract C tokens using regex matching keywords, identifiers, numbers, operators, punctuation
+  const tokenRegex = /\b(int|float|double|char|void|return|if|else|while|for|struct)\b|[A-Za-z_][A-Za-z0-9_]*|\d+|[{}()\[\];,+\-*\/%=<>!&|]/g;
+  const rawTokens = cleanLines.match(tokenRegex) || ['int', 'main', '(', ')', '{', 'return', '0', ';'];
+  const tokens = rawTokens.slice(0, 10);
+
+  // Parse function signature and return statement for AST
+  const mainFnMatch = sourceCode.match(/\b(int|void|float|double|char)\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)/);
+  const returnMatch = sourceCode.match(/return\s+([^;]+);/);
+  
+  // Extract body summary statements
+  const bodyStatements: string[] = [];
+  const varMatches = [...sourceCode.matchAll(/\b(int|float|double|char)\s+([A-Za-z_][A-Za-z0-9_]*)\s*=/g)];
+  varMatches.forEach(m => bodyStatements.push(`Var: ${m[2]}`));
+  
+  const returnVal = returnMatch ? returnMatch[1].trim() : '0';
+
+  return {
+    tokens,
+    ast: {
+      functionName: mainFnMatch ? mainFnMatch[2] : 'main',
+      returnType: mainFnMatch ? mainFnMatch[1] : 'int',
+      params: mainFnMatch && mainFnMatch[3].trim() ? mainFnMatch[3].split(',').map(p => p.trim()) : [],
+      bodyStatements: bodyStatements.slice(0, 3),
+      returnValue: returnVal
+    },
+    semanticChecks: {
+      typesChecked: !hasError,
+      symbolsResolved: !hasError,
+      validReturnType: !hasError
+    }
+  };
+}
+
 export function App() {
   const [code, setCode] = useState<string>(SAMPLE_C_CODE);
   const [selectedStageId, setSelectedStageId] = useState<string>('source');
@@ -596,6 +654,106 @@ export function App() {
                   </div>
                   <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                     Preprocessed C
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* LLVM IR Frontend Stage Flow Visualizer */}
+          {selectedStageId === 'llvm_ir' && (() => {
+            const hasError = stageArtifacts['llvm_ir']?.status === 'error';
+            const llvmData = extractLlvmVisualData(code, hasError);
+
+            return (
+              <div className="llvm-visual-flow">
+                <div className="llvm-flow-title">Frontend Compilation Pipeline Visualizer</div>
+                
+                <div className="llvm-cards-wrapper">
+                  {/* Step 1: Input main.i */}
+                  <div className="llvm-card">
+                    <div className="llvm-card-header">
+                      <span className="llvm-step-number">Step 1</span>
+                      <span className="llvm-card-title">main.i</span>
+                    </div>
+                    <div className="llvm-card-body">
+                      <div className="llvm-card-desc">Preprocessed source input code ready for parsing.</div>
+                      <div className="llvm-card-subtext font-mono">Input: main.i</div>
+                    </div>
+                  </div>
+
+                  <ChevronRight size={18} className="llvm-arrow" />
+
+                  {/* Step 2: Lexical Analysis / Tokens */}
+                  <div className="llvm-card">
+                    <div className="llvm-card-header">
+                      <span className="llvm-step-number">Step 2</span>
+                      <span className="llvm-card-title">Lexical Analysis</span>
+                    </div>
+                    <div className="llvm-card-body">
+                      <div className="llvm-card-label">Tokens:</div>
+                      <div className="token-pills-grid">
+                        {llvmData.tokens.map((tok, idx) => (
+                          <span key={idx} className="token-pill">{tok}</span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  <ChevronRight size={18} className="llvm-arrow" />
+
+                  {/* Step 3: Parsing / AST */}
+                  <div className="llvm-card">
+                    <div className="llvm-card-header">
+                      <span className="llvm-step-number">Step 3</span>
+                      <span className="llvm-card-title">Parsing / AST</span>
+                    </div>
+                    <div className="llvm-card-body">
+                      <div className="ast-tag">Simplified AST Representation</div>
+                      <div className="ast-tree font-mono">
+                        <div>Function: <span className="ast-highlight">{llvmData.ast.functionName}</span></div>
+                        <div>├── Return Type: <span className="ast-type">{llvmData.ast.returnType}</span></div>
+                        <div>└── Body</div>
+                        <div>&nbsp;&nbsp;&nbsp;&nbsp;└── Return: <span className="ast-val">{llvmData.ast.returnValue}</span></div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <ChevronRight size={18} className="llvm-arrow" />
+
+                  {/* Step 4: Semantic Analysis */}
+                  <div className="llvm-card">
+                    <div className="llvm-card-header">
+                      <span className="llvm-step-number">Step 4</span>
+                      <span className="llvm-card-title">Semantic Analysis</span>
+                    </div>
+                    <div className="llvm-card-body">
+                      <div className="semantic-checks">
+                        <div className={llvmData.semanticChecks.typesChecked ? 'check-pass' : 'check-fail'}>
+                          {llvmData.semanticChecks.typesChecked ? '✓ Types checked' : '✕ Type check failed'}
+                        </div>
+                        <div className={llvmData.semanticChecks.symbolsResolved ? 'check-pass' : 'check-fail'}>
+                          {llvmData.semanticChecks.symbolsResolved ? '✓ Variables/functions resolved' : '✕ Symbol resolution failed'}
+                        </div>
+                        <div className={llvmData.semanticChecks.validReturnType ? 'check-pass' : 'check-fail'}>
+                          {llvmData.semanticChecks.validReturnType ? '✓ Valid return type' : '✕ Return type invalid'}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <ChevronRight size={18} className="llvm-arrow" />
+
+                  {/* Step 5: LLVM IR */}
+                  <div className="llvm-card llvm-card-target">
+                    <div className="llvm-card-header">
+                      <span className="llvm-step-number">Step 5</span>
+                      <span className="llvm-card-title">LLVM IR</span>
+                    </div>
+                    <div className="llvm-card-body">
+                      <div className="llvm-output-target font-mono">main.ll</div>
+                      <div className="llvm-card-desc">SSA Intermediate Representation generated below.</div>
+                    </div>
                   </div>
                 </div>
               </div>

@@ -315,6 +315,10 @@ export function App() {
           {COMPILATION_STAGES.map((stage, index) => {
             const currentStatus = stageArtifacts[stage.id]?.status || (stage.id === 'source' ? 'completed' : 'pending');
             const isSelected = stage.id === selectedStageId;
+            const hasPriorError = COMPILATION_STAGES.slice(0, index).some(
+              (s) => stageArtifacts[s.id]?.status === 'error'
+            );
+            const isNotReached = currentStatus === 'pending' && hasPriorError;
 
             return (
               <React.Fragment key={stage.id}>
@@ -323,13 +327,13 @@ export function App() {
                   onClick={() => setSelectedStageId(stage.id)}
                 >
                   <div className="stage-info">
-                    <span className="stage-number">Stage {index + 1}</span>
+                    <span className="stage-number">{isNotReached ? 'Not reached' : `Stage ${index + 1}`}</span>
                     <span className="stage-name">{stage.name}</span>
                   </div>
                   <div className="stage-icon-badge">
                     {currentStatus === 'completed' && <Check size={14} />}
                     {currentStatus === 'running' && <Loader2 size={14} className="spinner" />}
-                    {currentStatus === 'pending' && <span style={{ fontSize: '10px' }}>{index + 1}</span>}
+                    {currentStatus === 'pending' && !isNotReached && <span style={{ fontSize: '10px' }}>{index + 1}</span>}
                     {currentStatus === 'error' && <span style={{ fontSize: '10px', color: '#ef4444' }}>✕</span>}
                   </div>
                 </div>

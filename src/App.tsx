@@ -139,6 +139,189 @@ interface ObjectCodeVisualData {
   relocations: string[];
 }
 
+interface LinkingVisualData {
+  inputObjectFile: string;
+  outputExecutable: string;
+  externalRefs: string[];
+  definedSymbols: string[];
+  resolvedSymbols: { name: string; source: string }[];
+  relocationDetails: string[];
+  libraries: string[];
+}
+
+function extractLinkingVisualData(
+  code: string,
+  linkingContent: string,
+  objectDisassembly: string,
+  assemblyContent: string,
+  linkingInputFile?: string,
+  linkingOutputFile?: string
+): LinkingVisualData {
+  const combinedArtifacts = `${code}\n${assemblyContent}\n${objectDisassembly}\n${linkingContent}`;
+
+  // 1. Defined functions / symbols in object file
+  const definedSymbolsSet = new Set<string>();
+  
+  // From disassembly (<func_name>:)
+  const disasmSymbols = [...objectDisassembly.matchAll(/<([A-Za-z_][A-Za-z0-9_]*)>:/g)];
+  for (const m of disasmSymbols) {
+    if (m[1] && !m[1].includes('@')) {
+      definedSymbolsSet.add(m[1]);
+    }
+  }
+
+  // From source code (functions defined like `int foo(...)`)
+  const funcDefs = [...code.matchAll(/\b(?:int|void|float|double|char|long|short|unsigned|static|inline)\s+([A-Za-z_][A-Za-z0-9_]*)\s*\([^)]*\)\s*\{/g)];
+  for (const m of funcDefs) {
+    definedSymbolsSet.add(m[1]);
+  }
+
+  // Fallback if none detected
+  if (definedSymbolsSet.size === 0) {
+    definedSymbolsSet.add('main');
+  }
+  const definedSymbols = Array.from(definedSymbolsSet);
+
+  // 2. Unresolved external references called in object file
+  const externalRefsSet = new Set<string>();
+
+  // From assembly call instructions (callq printf@PLT or call printf)
+  const asmCalls = [...assemblyContent.matchAll(/call[q]?\s+([A-Za-z_][A-Za-z0-9_]*)(?:@PLT)?/g)];
+  for (const m of asmCalls) {
+    const fn = m[1];
+    if (!definedSymbolsSet.has(fn)) {
+      externalRefsSet.add(fn);
+    }
+  }
+
+  // From LLVM / object disassembly call targets
+  const objectCalls = [...objectDisassembly.matchAll(/callq\s+.*<([A-Za-z_][A-Za-z0-9_]*)(?:@plt)?>/g)];
+  for (const m of objectCalls) {
+    const fn = m[1];
+    if (!definedSymbolsSet.has(fn)) {
+      externalRefsSet.add(fn);
+    }
+  }
+
+  // From source calls (e.g., printf, puts, malloc, scanf, sqrt, exit, etc.)
+  const sourceCalls = [...code.matchAll(/\b([A-Za-z_][A-Za-z0-9_]*)\s*\(/g)];
+  const keywords = new Set(['if', 'while', 'for', 'switch', 'return', 'sizeof', 'sizeof...']);
+  for (const m of sourceCalls) {
+    const name = m[1];
+    if (!keywords.has(name) && !definedSymbolsSet.has(name)) {
+      externalRefsSet.add(name);
+    }
+  }
+
+  // Check linkingContent map lines for external symbols (e.g., <printf@plt> - Resolved from ...)
+  const linkMapMatches = [...linkingContent.matchAll(/<([A-Za-z0-9_]+)(?:@plt)?>\s*-\s*Resolved from\s+(.+)/gi)];
+  for (const m of linkMapMatches) {
+    if (!definedSymbolsSet.has(m[1])) {
+      externalRefsSet.add(m[1]);
+    }
+  }
+
+  // If no external ref was detected
+  if (externalRefsSet.size === 0) {
+    // Check standard includes to infer potential runtime dependencies if any calls exist
+    if (code.includes('stdio.h') || combinedArtifacts.includes('printf')) {
+      externalRefsSet.add('printf');
+    }
+  }
+
+  const externalRefs = Array.from(externalRefsSet);
+
+  // 3. Symbol Resolution mapping
+  const resolvedSymbols: { name: string; source: string }[] = [];
+
+  // Defined symbols defined in object file
+  definedSymbols.forEach(sym => {
+    resolvedSymbols.push({
+      name: sym,
+      source: `defined in ${linkingInputFile || 'main.o'}`
+    });
+  });
+
+  // External references resolved via runtime/libc linkage
+  externalRefs.forEach(ref => {
+    let sourceDesc = 'resolved through runtime/library linkage';
+    // Check if link map mentions exact library
+    for (const m of linkMapMatches) {
+      if (m[1].toLowerCase() === ref.toLowerCase()) {
+        sourceDesc = `resolved from ${m[2].trim()}`;
+        break;
+      }
+    }
+    resolvedSymbols.push({
+      name: ref,
+      source: sourceDesc
+    });
+  });
+
+  // 4. Relocation Information
+  const relocationDetailsSet = new Set<string>();
+
+  if (externalRefs.length > 0) {
+    externalRefs.forEach(ref => {
+      relocationDetailsSet.add(`${ref}@PLT / GOT entry displacement`);
+    });
+  }
+
+  // Check object disassembly / assembly relocations
+  if (objectDisassembly.includes('callq') || assemblyContent.includes('call')) {
+    relocationDetailsSet.add('Call target offset patching');
+  }
+  if (combinedArtifacts.includes('.rodata') || combinedArtifacts.includes('.str') || combinedArtifacts.includes('leaq') || combinedArtifacts.includes('%rip')) {
+    relocationDetailsSet.add('RIP-relative section data offsets');
+  }
+
+  // From linkingContent artifact text
+  if (linkingContent.includes('Entry Point Address:')) {
+    const match = linkingContent.match(/Entry Point Address:\s*(0x[0-9a-fA-F]+)/);
+    if (match) {
+      relocationDetailsSet.add(`Entry point virtual base address: ${match[1]}`);
+    }
+  }
+
+  if (relocationDetailsSet.size === 0) {
+    relocationDetailsSet.add('Address & offset adjustment after layout placement');
+  }
+
+  // 5. Libraries & Runtime dependencies
+  const librariesSet = new Set<string>();
+
+  // Check explicit library paths in linking content
+  const libMatches = [...linkingContent.matchAll(/(libc(?:\.so|\.a|\.dylib)?|libm(?:\.so|\.a)?|crt1\.o|crti\.o|lib[A-Za-z0-9_\-.]+)/gi)];
+  for (const m of libMatches) {
+    librariesSet.add(m[1]);
+  }
+
+  // Infer from C standard library headers or calls
+  if (code.includes('<stdio.h>') || externalRefs.includes('printf') || externalRefs.includes('puts') || externalRefs.includes('scanf')) {
+    librariesSet.add('libc (C Standard Library)');
+  }
+  if (code.includes('<math.h>') || externalRefs.includes('sqrt') || externalRefs.includes('pow') || externalRefs.includes('sin') || externalRefs.includes('cos')) {
+    librariesSet.add('libm (Math Library)');
+  }
+  if (code.includes('<pthread.h>') || externalRefs.includes('pthread_create')) {
+    librariesSet.add('libpthread (POSIX Threads)');
+  }
+
+  if (librariesSet.size === 0) {
+    librariesSet.add('libc / Standard C Runtime');
+  }
+
+  return {
+    inputObjectFile: linkingInputFile || 'main.o',
+    outputExecutable: linkingOutputFile || 'main',
+    externalRefs,
+    definedSymbols,
+    resolvedSymbols,
+    relocationDetails: Array.from(relocationDetailsSet),
+    libraries: Array.from(librariesSet)
+  };
+}
+
 function extractObjectCodeVisualData(assemblyContent: string, objectDisassembly: string): ObjectCodeVisualData {
   const fullText = (assemblyContent + '\n' + objectDisassembly);
 
@@ -1271,92 +1454,118 @@ export function App() {
           })()}
 
           {/* Linking Stage Visualizer */}
-          {selectedStageId === 'linking' && (
-            <div className="object-visual-flow">
-              <div className="object-flow-title">Linking Stage Flow</div>
+          {selectedStageId === 'linking' && (() => {
+            const assemblyContent = stageArtifacts['assembly']?.content || COMPILATION_STAGES.find(s => s.id === 'assembly')?.getArtifactContent(code) || '';
+            const objectDisassembly = stageArtifacts['object_code']?.content || COMPILATION_STAGES.find(s => s.id === 'object_code')?.getArtifactContent(code) || '';
+            const linkingContent = rawFileContent;
+            const linkInputFile = stageArtifacts['linking']?.inputFile || currentInputFile;
+            const linkOutputFile = stageArtifacts['linking']?.outputFile || currentOutputFile;
 
-              <div className="object-cards-wrapper">
-                {/* Step 1: Object File */}
-                <div className="object-card">
-                  <div className="object-card-header">
-                    <span className="object-step-number">Step 1</span>
-                    <span className="object-card-title">Object File</span>
-                  </div>
-                  <div className="object-card-body">
-                    <div className="object-output-target font-mono">main.o</div>
-                    <div className="object-card-subtext font-semibold">Relocatable object file</div>
-                    <div className="object-card-desc">
-                      External reference: <span className="font-mono">printf</span>
+            const linkData = extractLinkingVisualData(
+              code,
+              linkingContent,
+              objectDisassembly,
+              assemblyContent,
+              linkInputFile,
+              linkOutputFile
+            );
+
+            return (
+              <div className="object-visual-flow">
+                <div className="object-flow-title">Linking Stage Flow</div>
+
+                <div className="object-cards-wrapper">
+                  {/* Step 1: Object File */}
+                  <div className="object-card">
+                    <div className="object-card-header">
+                      <span className="object-step-number">Step 1</span>
+                      <span className="object-card-title">Object File</span>
+                    </div>
+                    <div className="object-card-body">
+                      <div className="object-output-target font-mono">{linkData.inputObjectFile}</div>
+                      <div className="object-card-subtext font-semibold">Relocatable object file</div>
+                      <div className="object-card-desc">
+                        {linkData.externalRefs.length > 0 ? (
+                          <>External reference: <span className="font-mono">{linkData.externalRefs.join(', ')}</span></>
+                        ) : (
+                          <>Defined symbols: <span className="font-mono">{linkData.definedSymbols.join(', ')}</span></>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                <ChevronRight size={18} className="object-arrow" />
+                  <ChevronRight size={18} className="object-arrow" />
 
-                {/* Step 2: Symbol Resolution */}
-                <div className="object-card">
-                  <div className="object-card-header">
-                    <span className="object-step-number">Step 2</span>
-                    <span className="object-card-title">Symbol Resolution</span>
-                  </div>
-                  <div className="object-card-body">
-                    <div className="object-card-desc font-mono" style={{ fontSize: '0.75rem' }}>
-                      <div><span style={{ color: 'var(--primary)' }}>main/add</span> → defined in main.o</div>
-                      <div><span style={{ color: 'var(--primary)' }}>printf</span> → resolved through runtime/library linkage</div>
+                  {/* Step 2: Symbol Resolution */}
+                  <div className="object-card">
+                    <div className="object-card-header">
+                      <span className="object-step-number">Step 2</span>
+                      <span className="object-card-title">Symbol Resolution</span>
+                    </div>
+                    <div className="object-card-body">
+                      <div className="object-card-desc font-mono" style={{ fontSize: '0.75rem' }}>
+                        {linkData.resolvedSymbols.slice(0, 3).map((res, idx) => (
+                          <div key={idx}>
+                            <span style={{ color: 'var(--primary)' }}>{res.name}</span> → {res.source}
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                <ChevronRight size={18} className="object-arrow" />
+                  <ChevronRight size={18} className="object-arrow" />
 
-                {/* Step 3: Relocations */}
-                <div className="object-card">
-                  <div className="object-card-header">
-                    <span className="object-step-number">Step 3</span>
-                    <span className="object-card-title">Relocations</span>
-                  </div>
-                  <div className="object-card-body">
-                    <div className="object-card-desc">
-                      Linker adjusts addresses and offsets after final placement.
+                  {/* Step 3: Relocations */}
+                  <div className="object-card">
+                    <div className="object-card-header">
+                      <span className="object-step-number">Step 3</span>
+                      <span className="object-card-title">Relocations</span>
+                    </div>
+                    <div className="object-card-body">
+                      <div className="object-card-desc font-mono" style={{ fontSize: '0.75rem' }}>
+                        {linkData.relocationDetails.slice(0, 2).map((rel, idx) => (
+                          <div key={idx}>• {rel}</div>
+                        ))}
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                <ChevronRight size={18} className="object-arrow" />
+                  <ChevronRight size={18} className="object-arrow" />
 
-                {/* Step 4: Libraries */}
-                <div className="object-card">
-                  <div className="object-card-header">
-                    <span className="object-step-number">Step 4</span>
-                    <span className="object-card-title">Libraries</span>
-                  </div>
-                  <div className="object-card-body">
-                    <div className="object-card-subtext font-semibold">Dynamic Linking</div>
-                    <div className="object-card-desc">
-                      libc provides <span className="font-mono">printf</span> at runtime
+                  {/* Step 4: Libraries */}
+                  <div className="object-card">
+                    <div className="object-card-header">
+                      <span className="object-step-number">Step 4</span>
+                      <span className="object-card-title">Libraries</span>
+                    </div>
+                    <div className="object-card-body">
+                      <div className="object-card-subtext font-semibold">Dynamic Linking</div>
+                      <div className="object-card-desc">
+                        {linkData.libraries.slice(0, 2).join(', ')}
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                <ChevronRight size={18} className="object-arrow" />
+                  <ChevronRight size={18} className="object-arrow" />
 
-                {/* Step 5: Executable */}
-                <div className="object-card object-card-target">
-                  <div className="object-card-header">
-                    <span className="object-step-number">Step 5</span>
-                    <span className="object-card-title">Executable</span>
-                  </div>
-                  <div className="object-card-body">
-                    <div className="object-output-target font-mono">main</div>
-                    <div className="object-card-subtext font-semibold">Linked executable</div>
-                    <div className="object-card-desc">
-                      Ready for OS loading
+                  {/* Step 5: Executable */}
+                  <div className="object-card object-card-target">
+                    <div className="object-card-header">
+                      <span className="object-step-number">Step 5</span>
+                      <span className="object-card-title">Executable</span>
+                    </div>
+                    <div className="object-card-body">
+                      <div className="object-output-target font-mono">{linkData.outputExecutable}</div>
+                      <div className="object-card-subtext font-semibold">Linked executable</div>
+                      <div className="object-card-desc">
+                        Ready for OS loading
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* Raw Artifact Output File Line Viewer */}
           {/* Execution Stage Visualizer */}

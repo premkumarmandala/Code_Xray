@@ -12,9 +12,10 @@ services:
       - key: PORT
         value: 8000
 
-  # 2. Frontend Static Site (Vite + React)
-  - type: static
+  # 2. Frontend Web Service (Vite + React Static Site)
+  - type: web
     name: codexray-frontend
+    env: static
     buildCommand: npm install && npm run build
     staticPublishPath: ./dist
     envVars:

@@ -24,6 +24,48 @@ interface StageArtifactState {
   status: 'pending' | 'running' | 'completed' | 'error';
 }
 
+function getIncludes(sourceCode: string): string[] {
+  const includes: string[] = [];
+  const lines = sourceCode.split('\n');
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith('#')) {
+      const match = trimmed.match(/^#\s*include\s+(<[^>]+>|"[^"]+")/);
+      if (match) {
+        includes.push(`#include ${match[1]}`);
+      }
+    }
+  }
+  return includes;
+}
+
+function getMacros(sourceCode: string): string[] {
+  const macros: string[] = [];
+  const lines = sourceCode.split('\n');
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith('#')) {
+      const match = trimmed.match(/^#\s*define\s+([A-Za-z_][A-Za-z0-9_]*(?:\([^)]*\))?)(?:\s+(.*))?$/);
+      if (match) {
+        const name = match[1];
+        let val = match[2] ? match[2].trim() : '';
+        if (val.includes('//')) {
+          val = val.split('//')[0].trim();
+        }
+        if (val.includes('/*')) {
+          val = val.replace(/\/\*.*?\*\//g, '').trim();
+        }
+        if (val) {
+          macros.push(`${name} → ${val}`);
+        } else {
+          macros.push(name);
+        }
+      }
+    }
+  }
+  return macros;
+}
+
 export function App() {
   const [code, setCode] = useState<string>(SAMPLE_C_CODE);
   const [selectedStageId, setSelectedStageId] = useState<string>('source');
@@ -428,108 +470,137 @@ export function App() {
           </div>
 
           {/* Preprocessing Stage Flow Visualizer */}
-          {selectedStageId === 'preprocessing' && (
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '0.5rem',
-              marginBottom: '1rem',
-              padding: '1rem',
-              backgroundColor: 'var(--bg-card)',
-              border: '1px solid var(--border-color)',
-              borderRadius: '8px',
-              overflowX: 'auto'
-            }}>
+          {selectedStageId === 'preprocessing' && (() => {
+            const detectedIncludes = getIncludes(code);
+            const detectedMacros = getMacros(code);
+
+            const displayIncludes = detectedIncludes.slice(0, 3);
+            const hasMoreIncludes = detectedIncludes.length > 3;
+
+            const displayMacros = detectedMacros.slice(0, 3);
+            const hasMoreMacros = detectedMacros.length > 3;
+
+            return (
               <div style={{
-                flex: 1,
-                padding: '0.6rem 0.8rem',
-                backgroundColor: '#0f172a',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '0.5rem',
+                marginBottom: '1rem',
+                padding: '1rem',
+                backgroundColor: 'var(--bg-card)',
                 border: '1px solid var(--border-color)',
-                borderRadius: '6px',
-                minWidth: '130px'
+                borderRadius: '8px',
+                overflowX: 'auto'
               }}>
-                <div style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--primary)', marginBottom: '0.2rem' }}>
-                  main.c
+                <div style={{
+                  flex: 1,
+                  padding: '0.6rem 0.8rem',
+                  backgroundColor: '#0f172a',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: '6px',
+                  minWidth: '130px'
+                }}>
+                  <div style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--primary)', marginBottom: '0.2rem' }}>
+                    main.c
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                    Source C Code
+                  </div>
                 </div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                  Source C Code
+
+                <ChevronRight size={16} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+
+                <div style={{
+                  flex: 1,
+                  padding: '0.6rem 0.8rem',
+                  backgroundColor: '#0f172a',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: '6px',
+                  minWidth: '130px'
+                }}>
+                  <div style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--primary)', marginBottom: '0.2rem' }}>
+                    Include Expansion
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                    {displayIncludes.length === 0 ? (
+                      <div>No includes</div>
+                    ) : (
+                      <>
+                        {displayIncludes.map((inc, i) => (
+                          <div key={i}>{inc}</div>
+                        ))}
+                        {hasMoreIncludes && <div>+{detectedIncludes.length - 3} more</div>}
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                <ChevronRight size={16} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+
+                <div style={{
+                  flex: 1,
+                  padding: '0.6rem 0.8rem',
+                  backgroundColor: '#0f172a',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: '6px',
+                  minWidth: '130px'
+                }}>
+                  <div style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--primary)', marginBottom: '0.2rem' }}>
+                    Macro Replacement
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                    {displayMacros.length === 0 ? (
+                      <div>No macros</div>
+                    ) : (
+                      <>
+                        {displayMacros.map((mac, i) => (
+                          <div key={i}>{mac}</div>
+                        ))}
+                        {hasMoreMacros && <div>+{detectedMacros.length - 3} more</div>}
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                <ChevronRight size={16} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+
+                <div style={{
+                  flex: 1,
+                  padding: '0.6rem 0.8rem',
+                  backgroundColor: '#0f172a',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: '6px',
+                  minWidth: '130px'
+                }}>
+                  <div style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--primary)', marginBottom: '0.2rem' }}>
+                    Comment Removal
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                    Comments removed
+                  </div>
+                </div>
+
+                <ChevronRight size={16} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+
+                <div style={{
+                  flex: 1,
+                  padding: '0.6rem 0.8rem',
+                  backgroundColor: '#0f172a',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: '6px',
+                  minWidth: '130px'
+                }}>
+                  <div style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--primary)', marginBottom: '0.2rem' }}>
+                    main.i
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                    Preprocessed C
+                  </div>
                 </div>
               </div>
-
-              <ChevronRight size={16} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
-
-              <div style={{
-                flex: 1,
-                padding: '0.6rem 0.8rem',
-                backgroundColor: '#0f172a',
-                border: '1px solid var(--border-color)',
-                borderRadius: '6px',
-                minWidth: '130px'
-              }}>
-                <div style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--primary)', marginBottom: '0.2rem' }}>
-                  Include Expansion
-                </div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                  #include &lt;stdio.h&gt; → Headers inserted
-                </div>
-              </div>
-
-              <ChevronRight size={16} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
-
-              <div style={{
-                flex: 1,
-                padding: '0.6rem 0.8rem',
-                backgroundColor: '#0f172a',
-                border: '1px solid var(--border-color)',
-                borderRadius: '6px',
-                minWidth: '130px'
-              }}>
-                <div style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--primary)', marginBottom: '0.2rem' }}>
-                  Macro Replacement
-                </div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                  MULTIPLIER → 2
-                </div>
-              </div>
-
-              <ChevronRight size={16} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
-
-              <div style={{
-                flex: 1,
-                padding: '0.6rem 0.8rem',
-                backgroundColor: '#0f172a',
-                border: '1px solid var(--border-color)',
-                borderRadius: '6px',
-                minWidth: '130px'
-              }}>
-                <div style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--primary)', marginBottom: '0.2rem' }}>
-                  Comment Removal
-                </div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                  Comments removed
-                </div>
-              </div>
-
-              <ChevronRight size={16} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
-
-              <div style={{
-                flex: 1,
-                padding: '0.6rem 0.8rem',
-                backgroundColor: '#0f172a',
-                border: '1px solid var(--border-color)',
-                borderRadius: '6px',
-                minWidth: '130px'
-              }}>
-                <div style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--primary)', marginBottom: '0.2rem' }}>
-                  main.i
-                </div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                  Preprocessed C
-                </div>
-              </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* Raw Artifact Output File Line Viewer */}
           <div className="artifact-container">

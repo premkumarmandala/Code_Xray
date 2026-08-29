@@ -126,6 +126,8 @@ function extractLlvmVisualData(sourceCode: string, hasError: boolean): LlvmVisua
 
 interface AssemblyVisualData {
   llvmSample: string[];
+  funcNames: string[];
+  regAllocPairs: { virtualOrName: string; regOrLoc: string }[];
   instructions: string[];
 }
 
@@ -223,37 +225,87 @@ function extractObjectCodeVisualData(assemblyContent: string, objectDisassembly:
 
 function extractAssemblyVisualData(llvmIrContent: string, assemblyContent: string): AssemblyVisualData {
   let llvmSample: string[] = [];
+  let funcNames: string[] = [];
+  
   if (llvmIrContent) {
     const irLines = llvmIrContent.split('\n');
+    
+    // Extract real function names defined in LLVM IR
+    for (const line of irLines) {
+      const match = line.match(/define\s+[^@]*@([A-Za-z0-9_]+)\s*\(/);
+      if (match && match[1]) {
+        if (!funcNames.includes(match[1])) {
+          funcNames.push(match[1]);
+        }
+      }
+    }
+
+    // Extract real IR instruction lines (operations, assignments, calls, rets, stores, loads, alloca, etc.)
     const matching = irLines.filter(line => {
       const t = line.trim();
-      return (t.includes('add ') || t.includes('mul ') || t.includes('store ') || t.includes('ret ') || t.includes('call ')) && !t.startsWith(';');
+      return (
+        !t.startsWith(';') &&
+        !t.startsWith('source_filename') &&
+        !t.startsWith('target ') &&
+        !t.startsWith('attributes ') &&
+        !t.startsWith('!') &&
+        t.length > 0 &&
+        (t.includes(' = ') || t.startsWith('store ') || t.startsWith('ret ') || t.startsWith('call ') || t.startsWith('br '))
+      );
     });
+
     if (matching.length > 0) {
-      llvmSample = matching.slice(0, 2).map(l => l.trim());
+      llvmSample = matching.slice(0, 3).map(l => l.trim());
     }
   }
+
+  // Fallback IR samples and function names if parsing yielded none
   if (llvmSample.length === 0) {
-    llvmSample = ['%7 = add nsw i32 %5, %6', 'ret i32 %7'];
+    llvmSample = ['%3 = add nsw i32 %1, %2', 'ret i32 %3'];
+  }
+  if (funcNames.length === 0) {
+    funcNames = ['main'];
   }
 
   let instructions: string[] = [];
+  const foundOpcodes: string[] = [];
+  const regMap: Map<string, string> = new Map();
+
   if (assemblyContent) {
     const asmLines = assemblyContent.split('\n');
-    const foundOpcodes: string[] = [];
     for (const line of asmLines) {
       const t = line.trim();
       if (!t || t.startsWith('.') || t.endsWith(':') || t.startsWith('#')) continue;
+
+      // Split instruction opcode and operands
       const parts = t.split(/\s+/);
       const opcode = parts[0];
-      if (opcode && /^[a-z]+$/i.test(opcode)) {
+
+      if (opcode && /^[a-z]+[0-9]*$/i.test(opcode)) {
         if (!foundOpcodes.includes(opcode.toLowerCase())) {
           foundOpcodes.push(opcode.toLowerCase());
         }
       }
+
+      // Extract register references (%rax, %rbp, %edi, %esi, %eax, %rsp, %rdi, etc.)
+      const regsInLine = [...line.matchAll(/%(r[a-z0-9]+|e[a-z0-9]+|[a-z]{2})/gi)].map(m => m[0]);
+      if (regsInLine.length > 0) {
+        if (opcode.startsWith('mov') || opcode.startsWith('add') || opcode.startsWith('sub') || opcode.startsWith('lea')) {
+          const mainReg = regsInLine[regsInLine.length - 1]; // destination register is usually last in AT&T syntax
+          if (!regMap.has(mainReg)) {
+            let label = 'temp / result';
+            if (regsInLine.includes('%edi') || regsInLine.includes('%rdi')) label = 'arg 1 (rdi)';
+            else if (regsInLine.includes('%esi') || regsInLine.includes('%rsi')) label = 'arg 2 (rsi)';
+            else if (regsInLine.includes('%rbp') || regsInLine.includes('%rsp')) label = 'stack frame ptr';
+            else if (mainReg.includes('ax')) label = 'return val / temp';
+            regMap.set(mainReg, label);
+          }
+        }
+      }
     }
+
     if (foundOpcodes.length > 0) {
-      const priority = ['movl', 'addl', 'retq', 'callq', 'pushq', 'popq', 'subq'];
+      const priority = ['movl', 'movq', 'addl', 'subq', 'leaq', 'callq', 'retq', 'pushq', 'popq', 'xorl'];
       const sorted = [...foundOpcodes].sort((a, b) => {
         const idxA = priority.indexOf(a);
         const idxB = priority.indexOf(b);
@@ -262,14 +314,32 @@ function extractAssemblyVisualData(llvmIrContent: string, assemblyContent: strin
         if (idxB !== -1) return 1;
         return 0;
       });
-      instructions = sorted.slice(0, 4);
+      instructions = sorted.slice(0, 5);
     }
   }
+
   if (instructions.length === 0) {
     instructions = ['movl', 'addl', 'retq'];
   }
 
-  return { llvmSample, instructions };
+  // Build real or fallback register allocation pairs
+  const regAllocPairs: { virtualOrName: string; regOrLoc: string }[] = [];
+  if (regMap.size > 0) {
+    regMap.forEach((label, reg) => {
+      if (regAllocPairs.length < 3) {
+        regAllocPairs.push({ virtualOrName: label, regOrLoc: reg });
+      }
+    });
+  }
+
+  if (regAllocPairs.length === 0) {
+    regAllocPairs.push(
+      { virtualOrName: 'arg 1', regOrLoc: '%edi' },
+      { virtualOrName: 'return value', regOrLoc: '%eax' }
+    );
+  }
+
+  return { llvmSample, funcNames, regAllocPairs, instructions };
 }
 
 export function App() {
@@ -957,6 +1027,11 @@ export function App() {
                       <div className="assembly-card-desc">
                         LLVM converts IR operations into target-specific machine instruction patterns.
                       </div>
+                      {asmVisualData.funcNames.length > 0 && (
+                        <div className="assembly-card-desc" style={{ marginTop: '0.4rem', fontSize: '0.75rem', opacity: 0.9 }}>
+                          Functions: <span className="font-mono" style={{ color: '#38bdf8' }}>{asmVisualData.funcNames.join(', ')}</span>
+                        </div>
+                      )}
                       <div className="assembly-note-box">
                         <span className="assembly-note-tag">Note:</span> One LLVM IR instruction may map to multiple (or zero) assembly instructions depending on target architecture patterns.
                       </div>
@@ -976,8 +1051,11 @@ export function App() {
                         Maps virtual IR values to physical CPU registers or stack locations:
                       </div>
                       <div className="assembly-code-box font-mono">
-                        <div className="assembly-code-line"><span className="asm-var">temporary value</span> → <span className="asm-reg">%eax</span></div>
-                        <div className="assembly-code-line"><span className="asm-var">arg 1</span> → <span className="asm-reg">%edi</span></div>
+                        {asmVisualData.regAllocPairs.map((pair, idx) => (
+                          <div key={idx} className="assembly-code-line">
+                            <span className="asm-var">{pair.virtualOrName}</span> → <span className="asm-reg">{pair.regOrLoc}</span>
+                          </div>
+                        ))}
                       </div>
                       <div className="assembly-simulated-tag">(simplified explanation)</div>
                     </div>

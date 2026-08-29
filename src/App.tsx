@@ -624,20 +624,30 @@ export function App() {
   const [stageArtifacts, setStageArtifacts] = useState<Record<string, StageArtifactState>>({});
 
   const [isVisualizing, setIsVisualizing] = useState<boolean>(false);
+  const [isPaused, setIsPaused] = useState<boolean>(false);
   const [logs, setLogs] = useState<string[]>([
     '[CodeXRay Ready] Direct raw file viewer active. Select any compilation stage below to view its full raw file.'
   ]);
   const [copied, setCopied] = useState<boolean>(false);
-
-  // Callstack modal state
   const [showCallStack, setShowCallStack] = useState<boolean>(false);
-  const [debugData, setDebugData] = useState<DebugData | null>(null);
   const [loadingCallStack, setLoadingCallStack] = useState<boolean>(false);
+  const [debugData, setDebugData] = useState<DebugData | null>(null);
 
-  // Animation controller ref
+  const activeItemRef = useRef<HTMLDivElement | null>(null);
   const isAnimatingRef = useRef<boolean>(false);
   const isPausedRef = useRef<boolean>(false);
-  const [isPaused, setIsPaused] = useState<boolean>(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (activeItemRef.current) {
+        activeItemRef.current.scrollIntoView({
+          behavior: 'smooth',
+          block: 'nearest'
+        });
+      }
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [selectedStageId]);
 
   const handlePrevStep = () => {
     const currentIndex = COMPILATION_STAGES.findIndex((s) => s.id === selectedStageId);
@@ -775,6 +785,10 @@ const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
   }, []);
 
   const handleOpenCallStack = async () => {
+    if (showCallStack) {
+      setShowCallStack(false);
+      return;
+    }
     setShowCallStack(true);
     setLoadingCallStack(true);
     setDebugData(null);
@@ -850,6 +864,9 @@ const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
   const runVisualization = async () => {
     if (isVisualizing) return;
     
+    setIsPaused(false);
+    isPausedRef.current = false;
+    setSelectedStageId('source');
     setIsVisualizing(true);
     isAnimatingRef.current = true;
     
@@ -1183,6 +1200,11 @@ const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
               return (
                 <div 
                   key={stg.id}
+                  ref={(el) => {
+                    if (isSelected) {
+                      activeItemRef.current = el;
+                    }
+                  }}
                   className={`whats-happening-item ${isSelected ? 'active' : ''} ${currentStatus}`}
                   onClick={() => setSelectedStageId(mappedStageId)}
                   style={{ '--stage-accent': stg.color } as React.CSSProperties}
@@ -1996,7 +2018,7 @@ const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
               Previous Step
             </button>
 
-            <button 
+             <button 
               className="ctrl-btn main-action" 
               onClick={handleTogglePause}
               title={isVisualizing ? (isPaused ? 'Resume Animation' : 'Pause Animation') : 'Start Visualization'}

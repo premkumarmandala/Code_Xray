@@ -129,6 +129,98 @@ interface AssemblyVisualData {
   instructions: string[];
 }
 
+interface ObjectCodeVisualData {
+  asmSample: string[];
+  machineMappings: { asm: string; hex: string }[];
+  sections: { name: string; desc: string }[];
+  symbols: string[];
+  relocations: string[];
+}
+
+function extractObjectCodeVisualData(assemblyContent: string, objectDisassembly: string): ObjectCodeVisualData {
+  // 1. Asm sample from assemblyContent or objectDisassembly
+  let asmSample: string[] = [];
+  if (assemblyContent) {
+    const lines = assemblyContent.split('\n');
+    for (const l of lines) {
+      const t = l.trim();
+      if (t && !t.startsWith('.') && !t.endsWith(':') && !t.startsWith('#')) {
+        asmSample.push(t);
+        if (asmSample.length >= 3) break;
+      }
+    }
+  }
+  if (asmSample.length === 0) {
+    asmSample = ['pushq %rbp', 'movq %rsp, %rbp', 'callq printf@PLT'];
+  }
+
+  // 2. Machine Mappings from objectDisassembly (e.g., "7: 89 75 f8  movl %esi, -0x8(%rbp)")
+  const machineMappings: { asm: string; hex: string }[] = [];
+  if (objectDisassembly) {
+    const lines = objectDisassembly.split('\n');
+    for (const line of lines) {
+      // match lines like " 0: 55                           pushq %rbp"
+      // or "1a: c7 45 fc 05 00 00 00   movl $0x5, -0x4(%rbp)"
+      const match = line.match(/^\s*[0-9a-fA-F]+:\s+([0-9a-fA-F ]{2,24})\s+(.+)$/);
+      if (match) {
+        const hex = match[1].trim();
+        const asm = match[2].trim();
+        // filter out non-instruction lines or duplicate hex patterns if any
+        if (hex && asm && !asm.startsWith('.')) {
+          machineMappings.push({ asm, hex });
+          if (machineMappings.length >= 2) break;
+        }
+      }
+    }
+  }
+  if (machineMappings.length === 0) {
+    machineMappings.push(
+      { asm: 'pushq %rbp', hex: '55' },
+      { asm: 'movl %edi, -0x4(%rbp)', hex: '89 7d fc' }
+    );
+  }
+
+  // 3. Sections check
+  // Check if .text, .data, .rodata, .bss exist in disassembly / assembly output
+  const fullText = (assemblyContent + '\n' + objectDisassembly);
+  const detectedSections: { name: string; desc: string }[] = [];
+
+  // .text always exists for executable code
+  detectedSections.push({ name: '.text', desc: 'executable instructions' });
+
+  if (fullText.includes('.rodata') || fullText.includes('.str') || fullText.includes('rodata')) {
+    detectedSections.push({ name: '.rodata', desc: 'read-only constants' });
+  }
+  if (fullText.includes('.data')) {
+    detectedSections.push({ name: '.data', desc: 'initialized writable data' });
+  }
+  if (fullText.includes('.bss')) {
+    detectedSections.push({ name: '.bss', desc: 'zero/uninitialized data' });
+  }
+
+  // 4. Symbols & Relocations
+  const symbols: string[] = [];
+  if (fullText.includes('<add>') || fullText.includes('add:')) symbols.push('add');
+  if (fullText.includes('<main>') || fullText.includes('main:')) symbols.push('main');
+  if (fullText.includes('printf')) symbols.push('printf');
+  if (symbols.length === 0) symbols.push('main', 'add');
+
+  const relocations: string[] = [];
+  if (fullText.includes('printf') || fullText.includes('@PLT') || fullText.includes('callq  0x')) {
+    relocations.push('printf (PLT entry)');
+  } else {
+    relocations.push('external function addresses');
+  }
+
+  return {
+    asmSample,
+    machineMappings,
+    sections: detectedSections,
+    symbols,
+    relocations
+  };
+}
+
 function extractAssemblyVisualData(llvmIrContent: string, assemblyContent: string): AssemblyVisualData {
   let llvmSample: string[] = [];
   if (llvmIrContent) {
@@ -913,6 +1005,115 @@ export function App() {
                       <div className="assembly-output-target font-mono">main.s</div>
                       <div className="assembly-card-desc">
                         Target-specific assembly generated.
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Object Code Stage Educational Visualizer */}
+          {selectedStageId === 'object_code' && (() => {
+            const assemblyContent = stageArtifacts['assembly']?.content || COMPILATION_STAGES.find(s => s.id === 'assembly')?.getArtifactContent(code) || '';
+            const objectDisassembly = rawFileContent;
+            const objData = extractObjectCodeVisualData(assemblyContent, objectDisassembly);
+
+            return (
+              <div className="object-visual-flow">
+                <div className="object-flow-title">Object Code Assembler Pipeline</div>
+
+                <div className="object-cards-wrapper">
+                  {/* Step 1: Assembly (main.s) */}
+                  <div className="object-card">
+                    <div className="object-card-header">
+                      <span className="object-step-number">Step 1</span>
+                      <span className="object-card-title">Assembly (main.s)</span>
+                    </div>
+                    <div className="object-card-body">
+                      <div className="object-card-desc">Current assembly instructions:</div>
+                      <div className="object-code-box font-mono">
+                        {objData.asmSample.map((line, idx) => (
+                          <div key={idx} className="object-code-line">{line}</div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  <ChevronRight size={18} className="object-arrow" />
+
+                  {/* Step 2: Assembler */}
+                  <div className="object-card">
+                    <div className="object-card-header">
+                      <span className="object-step-number">Step 2</span>
+                      <span className="object-card-title">Assembler</span>
+                    </div>
+                    <div className="object-card-body">
+                      <div className="object-card-desc">
+                        Converts assembly instructions &amp; directives into relocatable machine code and object-file data.
+                      </div>
+                    </div>
+                  </div>
+
+                  <ChevronRight size={18} className="object-arrow" />
+
+                  {/* Step 3: Machine Encoding */}
+                  <div className="object-card">
+                    <div className="object-card-header">
+                      <span className="object-step-number">Step 3</span>
+                      <span className="object-card-title">Machine Encoding</span>
+                    </div>
+                    <div className="object-card-body">
+                      <div className="object-card-desc">Instruction to Hex Bytes:</div>
+                      <div className="object-code-box font-mono">
+                        {objData.machineMappings.map((m, idx) => (
+                          <div key={idx} className="object-code-line" style={{ display: 'flex', justifyContent: 'space-between', gap: '0.2rem' }}>
+                            <span className="obj-asm">{m.asm}</span>
+                            <span className="obj-hex font-mono">{m.hex}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  <ChevronRight size={18} className="object-arrow" />
+
+                  {/* Step 4: Sections / Symbols / Relocations */}
+                  <div className="object-card">
+                    <div className="object-card-header">
+                      <span className="object-step-number">Step 4</span>
+                      <span className="object-card-title">Sections / Symbols</span>
+                    </div>
+                    <div className="object-card-body">
+                      <div className="object-card-label">Active Sections:</div>
+                      <div className="object-sections-list">
+                        {objData.sections.map((s, idx) => (
+                          <div key={idx} className="object-section-item">
+                            <span className="obj-sec-name">{s.name}</span>
+                            <span className="obj-sec-desc">→ {s.desc}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="object-meta-box">
+                        <div><span className="obj-meta-tag">Symbols:</span> {objData.symbols.join(', ')}</div>
+                        <div><span className="obj-meta-tag">Relocations:</span> {objData.relocations.join(', ')}</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <ChevronRight size={18} className="object-arrow" />
+
+                  {/* Step 5: Object File (main.o) */}
+                  <div className="object-card object-card-target">
+                    <div className="object-card-header">
+                      <span className="object-step-number">Step 5</span>
+                      <span className="object-card-title">Object File</span>
+                    </div>
+                    <div className="object-card-body">
+                      <div className="object-output-target font-mono">main.o</div>
+                      <div className="object-card-subtext font-semibold">Relocatable object file</div>
+                      <div className="object-card-desc">
+                        Contains machine code &amp; metadata; not yet the final executable.
                       </div>
                     </div>
                   </div>

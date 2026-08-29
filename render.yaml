@@ -1,0 +1,24 @@
+services:
+  # 1. Backend Web Service (Docker container with Clang & LLDB)
+  - type: web
+    name: codexray-backend
+    env: docker
+    rootDir: backend
+    dockerContext: backend
+    dockerfilePath: backend/Dockerfile
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: PORT
+        value: 8000
+
+  # 2. Frontend Web Service (Vite + React Static Site)
+  - type: web
+    name: codexray-frontend
+    env: static
+    buildCommand: npm install && npm run build
+    staticPublishPath: ./dist
+    plan: free
+    envVars:
+      - key: VITE_API_URL
+        value: https://codexray-backend.onrender.com

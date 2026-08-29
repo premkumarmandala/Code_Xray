@@ -705,10 +705,12 @@ export function App() {
   // Split raw file text into raw lines
   const rawFileLines = rawFileContent.split('\n');
 
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
   // Trigger backend fetch for raw files when code changes or app mounts
   const fetchRawBackendArtifacts = async (sourceCode: string): Promise<any> => {
     try {
-      const response = await fetch('http://localhost:8000/api/compile', {
+      const response = await fetch(`${API_BASE}/api/compile`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ code: sourceCode, filename: 'main.c', timeout: 5.0 })
@@ -777,7 +779,7 @@ export function App() {
     setLoadingCallStack(true);
     setDebugData(null);
     try {
-      const response = await fetch('http://localhost:8000/api/debug/callstack', {
+      const response = await fetch(`${API_BASE}/api/debug/callstack`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ code, filename: 'main.c', timeout: 5.0 })

@@ -11,6 +11,9 @@ import {
   Loader2, 
   Zap, 
   ChevronRight,
+  ChevronLeft,
+  Pause,
+  SkipForward,
   FileCode,
   FileText,
   Cpu,
@@ -633,6 +636,61 @@ export function App() {
 
   // Animation controller ref
   const isAnimatingRef = useRef<boolean>(false);
+  const isPausedRef = useRef<boolean>(false);
+  const [isPaused, setIsPaused] = useState<boolean>(false);
+
+  const handlePrevStep = () => {
+    const currentIndex = COMPILATION_STAGES.findIndex((s) => s.id === selectedStageId);
+    if (currentIndex > 0) {
+      setSelectedStageId(COMPILATION_STAGES[currentIndex - 1].id);
+    }
+  };
+
+  const handleNextStep = () => {
+    const currentIndex = COMPILATION_STAGES.findIndex((s) => s.id === selectedStageId);
+    if (currentIndex < COMPILATION_STAGES.length - 1) {
+      const nextStage = COMPILATION_STAGES[currentIndex + 1];
+      setSelectedStageId(nextStage.id);
+      // Ensure next stage state is active/completed
+      setStageArtifacts((prev) => ({
+        ...prev,
+        [nextStage.id]: {
+          inputFile: prev[nextStage.id]?.inputFile || nextStage.inputFile,
+          outputFile: prev[nextStage.id]?.outputFile || nextStage.outputFile,
+          content: prev[nextStage.id]?.content || nextStage.getArtifactContent(code),
+          status: 'completed'
+        }
+      }));
+    }
+  };
+
+  const handleTogglePause = () => {
+    if (!isVisualizing) {
+      runVisualization();
+      return;
+    }
+    const nextPaused = !isPaused;
+    isPausedRef.current = nextPaused;
+    setIsPaused(nextPaused);
+  };
+
+  const handleSkipToEnd = () => {
+    isAnimatingRef.current = false;
+    isPausedRef.current = false;
+    setIsPaused(false);
+    setIsVisualizing(false);
+    const completedArtifacts: Record<string, StageArtifactState> = {};
+    COMPILATION_STAGES.forEach((s) => {
+      completedArtifacts[s.id] = {
+        inputFile: stageArtifacts[s.id]?.inputFile || s.inputFile,
+        outputFile: stageArtifacts[s.id]?.outputFile || s.outputFile,
+        content: stageArtifacts[s.id]?.content || s.getArtifactContent(code),
+        status: 'completed'
+      };
+    });
+    setStageArtifacts(completedArtifacts);
+    setSelectedStageId(COMPILATION_STAGES[COMPILATION_STAGES.length - 1].id);
+  };
 
   const selectedStageMeta = COMPILATION_STAGES.find((s) => s.id === selectedStageId) || COMPILATION_STAGES[0];
   
@@ -827,6 +885,9 @@ export function App() {
         setLogs((prev) => [...prev, stage.terminalOutput]);
 
         await new Promise((resolve) => setTimeout(resolve, 600));
+        while (isPausedRef.current && isAnimatingRef.current) {
+          await new Promise((resolve) => setTimeout(resolve, 100));
+        }
         if (!isAnimatingRef.current) break;
 
         if (bData && bData.status === 'success') {
@@ -895,6 +956,9 @@ export function App() {
         setLogs((prev) => [...prev, stage.terminalOutput]);
 
         await new Promise((resolve) => setTimeout(resolve, 600));
+        while (isPausedRef.current && isAnimatingRef.current) {
+          await new Promise((resolve) => setTimeout(resolve, 100));
+        }
 
         if (!isAnimatingRef.current) break;
 
@@ -929,6 +993,8 @@ export function App() {
 
     setIsVisualizing(false);
     isAnimatingRef.current = false;
+    isPausedRef.current = false;
+    setIsPaused(false);
   };
 
   const completedCount = COMPILATION_STAGES.filter(
@@ -970,18 +1036,24 @@ export function App() {
 
           <button 
             className="visualize-btn" 
-            onClick={runVisualization}
-            disabled={isVisualizing}
+            onClick={handleTogglePause}
           >
             {isVisualizing ? (
-              <>
-                <Loader2 size={18} className="spinner" />
-                Running...
-              </>
+              isPaused ? (
+                <>
+                  <Play size={18} fill="currentColor" />
+                  Resume
+                </>
+              ) : (
+                <>
+                  <Pause size={18} />
+                  Pause
+                </>
+              )
             ) : (
               <>
                 <Play size={18} fill="currentColor" />
-                Run
+                Run Pipeline
               </>
             )}
           </button>
@@ -1137,7 +1209,7 @@ export function App() {
           />
         </section>
 
-        {/* Right Side: Stage Visualization Workspace */}
+        {/* Middle/Right: Stage Visualization Workspace */}
         <section className="workspace-panel">
           {/* Stage Header Info */}
           <div className="stage-header-bar">
@@ -1156,7 +1228,7 @@ export function App() {
             </div>
           </div>
 
-          {/* Educational Explanation */}
+          {/* Educational Explanation Header */}
           <div className="explanation-box">
             <Info size={20} className="explanation-icon" />
             <p className="explanation-text">
@@ -1164,7 +1236,10 @@ export function App() {
             </p>
           </div>
 
-          {/* Preprocessing Stage Flow Visualizer */}
+          {/* Main Workspace Inner Grid: Stage Content + Right Explanation Side Panel */}
+          <div className="workspace-inner-grid">
+            <div className="workspace-stage-main">
+              {/* Preprocessing Stage Flow Visualizer */}
           {selectedStageId === 'preprocessing' && (() => {
             const detectedIncludes = getIncludes(code);
             const detectedMacros = getMacros(code);
@@ -1862,6 +1937,85 @@ export function App() {
                 </div>
               ))}
             </div>
+          </div>
+          </div>
+
+            {/* Stage-Specific Detailed Explanation Side Panel */}
+            <aside className="stage-explanation-side-panel">
+              <div className="explanation-panel-header">
+                <Info size={14} className="panel-header-icon" />
+                <span className="panel-header-title">{selectedStageMeta.name} Breakdown</span>
+              </div>
+              <div className="explanation-panel-body">
+                <div className="explanation-section">
+                  <span className="explanation-section-title">Overview</span>
+                  <p className="explanation-section-text">{selectedStageMeta.explanation}</p>
+                </div>
+                <div className="explanation-section">
+                  <span className="explanation-section-title">Files</span>
+                  <div className="explanation-file-row">
+                    <span className="file-label">In:</span> <code>{currentInputFile}</code>
+                  </div>
+                  <div className="explanation-file-row">
+                    <span className="file-label">Out:</span> <code>{currentOutputFile}</code>
+                  </div>
+                </div>
+                <div className="explanation-section">
+                  <span className="explanation-section-title">Stage Command</span>
+                  <pre className="explanation-cmd-box font-mono">{selectedStageMeta.terminalOutput}</pre>
+                </div>
+              </div>
+            </aside>
+          </div>
+
+          {/* Bottom Stage Playback Controls */}
+          <div className="detailed-view-controls-bar">
+            <button 
+              className="ctrl-btn" 
+              onClick={handlePrevStep}
+              disabled={COMPILATION_STAGES.findIndex((s) => s.id === selectedStageId) === 0}
+              title="Previous Stage Step"
+            >
+              <ChevronLeft size={16} />
+              Previous Step
+            </button>
+
+            <button 
+              className="ctrl-btn main-action" 
+              onClick={handleTogglePause}
+              title={isVisualizing ? (isPaused ? 'Resume Animation' : 'Pause Animation') : 'Start Visualization'}
+            >
+              {isVisualizing && !isPaused ? (
+                <>
+                  <Pause size={16} />
+                  Pause
+                </>
+              ) : (
+                <>
+                  <Play size={16} fill="currentColor" />
+                  {isPaused ? 'Resume' : 'Run Pipeline'}
+                </>
+              )}
+            </button>
+
+            <button 
+              className="ctrl-btn" 
+              onClick={handleNextStep}
+              disabled={COMPILATION_STAGES.findIndex((s) => s.id === selectedStageId) === COMPILATION_STAGES.length - 1}
+              title="Next Stage Step"
+            >
+              Next Step
+              <ChevronRight size={16} />
+            </button>
+
+            <button 
+              className="ctrl-btn skip-btn" 
+              onClick={handleSkipToEnd}
+              title="Skip to Final Execution Stage"
+            >
+              Skip to End
+              <SkipForward size={16} />
+            </button>
           </div>
 
           {/* Dedicated Run Log Panel below stage output */}

@@ -124,6 +124,62 @@ function extractLlvmVisualData(sourceCode: string, hasError: boolean): LlvmVisua
   };
 }
 
+interface AssemblyVisualData {
+  llvmSample: string[];
+  instructions: string[];
+}
+
+function extractAssemblyVisualData(llvmIrContent: string, assemblyContent: string): AssemblyVisualData {
+  let llvmSample: string[] = [];
+  if (llvmIrContent) {
+    const irLines = llvmIrContent.split('\n');
+    const matching = irLines.filter(line => {
+      const t = line.trim();
+      return (t.includes('add ') || t.includes('mul ') || t.includes('store ') || t.includes('ret ') || t.includes('call ')) && !t.startsWith(';');
+    });
+    if (matching.length > 0) {
+      llvmSample = matching.slice(0, 2).map(l => l.trim());
+    }
+  }
+  if (llvmSample.length === 0) {
+    llvmSample = ['%7 = add nsw i32 %5, %6', 'ret i32 %7'];
+  }
+
+  let instructions: string[] = [];
+  if (assemblyContent) {
+    const asmLines = assemblyContent.split('\n');
+    const foundOpcodes: string[] = [];
+    for (const line of asmLines) {
+      const t = line.trim();
+      if (!t || t.startsWith('.') || t.endsWith(':') || t.startsWith('#')) continue;
+      const parts = t.split(/\s+/);
+      const opcode = parts[0];
+      if (opcode && /^[a-z]+$/i.test(opcode)) {
+        if (!foundOpcodes.includes(opcode.toLowerCase())) {
+          foundOpcodes.push(opcode.toLowerCase());
+        }
+      }
+    }
+    if (foundOpcodes.length > 0) {
+      const priority = ['movl', 'addl', 'retq', 'callq', 'pushq', 'popq', 'subq'];
+      const sorted = [...foundOpcodes].sort((a, b) => {
+        const idxA = priority.indexOf(a);
+        const idxB = priority.indexOf(b);
+        if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+        if (idxA !== -1) return -1;
+        if (idxB !== -1) return 1;
+        return 0;
+      });
+      instructions = sorted.slice(0, 4);
+    }
+  }
+  if (instructions.length === 0) {
+    instructions = ['movl', 'addl', 'retq'];
+  }
+
+  return { llvmSample, instructions };
+}
+
 export function App() {
   const [code, setCode] = useState<string>(SAMPLE_C_CODE);
   const [selectedStageId, setSelectedStageId] = useState<string>('source');
@@ -753,6 +809,111 @@ export function App() {
                     <div className="llvm-card-body">
                       <div className="llvm-output-target font-mono">main.ll</div>
                       <div className="llvm-card-desc">SSA Intermediate Representation generated below.</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Assembly Stage Visualizer */}
+          {selectedStageId === 'assembly' && (() => {
+            const llvmIrContent = stageArtifacts['llvm_ir']?.content || COMPILATION_STAGES.find(s => s.id === 'llvm_ir')?.getArtifactContent(code) || '';
+            const assemblyContent = rawFileContent;
+            const asmVisualData = extractAssemblyVisualData(llvmIrContent, assemblyContent);
+
+            return (
+              <div className="assembly-visual-flow">
+                <div className="assembly-flow-title">Assembly Generation Flow</div>
+
+                <div className="assembly-cards-wrapper">
+                  {/* Step 1: LLVM IR (main.ll) */}
+                  <div className="assembly-card">
+                    <div className="assembly-card-header">
+                      <span className="assembly-step-number">Step 1</span>
+                      <span className="assembly-card-title">LLVM IR (main.ll)</span>
+                    </div>
+                    <div className="assembly-card-body">
+                      <div className="assembly-card-desc">Target-independent IR input:</div>
+                      <div className="assembly-code-box font-mono">
+                        {asmVisualData.llvmSample.map((line, idx) => (
+                          <div key={idx} className="assembly-code-line">{line}</div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  <ChevronRight size={18} className="assembly-arrow" />
+
+                  {/* Step 2: Instruction Selection */}
+                  <div className="assembly-card">
+                    <div className="assembly-card-header">
+                      <span className="assembly-step-number">Step 2</span>
+                      <span className="assembly-card-title">Instruction Selection</span>
+                    </div>
+                    <div className="assembly-card-body">
+                      <div className="assembly-card-desc">
+                        LLVM converts IR operations into target-specific machine instruction patterns.
+                      </div>
+                      <div className="assembly-note-box">
+                        <span className="assembly-note-tag">Note:</span> One LLVM IR instruction may map to multiple (or zero) assembly instructions depending on target architecture patterns.
+                      </div>
+                    </div>
+                  </div>
+
+                  <ChevronRight size={18} className="assembly-arrow" />
+
+                  {/* Step 3: Register Allocation */}
+                  <div className="assembly-card">
+                    <div className="assembly-card-header">
+                      <span className="assembly-step-number">Step 3</span>
+                      <span className="assembly-card-title">Register Allocation</span>
+                    </div>
+                    <div className="assembly-card-body">
+                      <div className="assembly-card-desc">
+                        Maps virtual IR values to physical CPU registers or stack locations:
+                      </div>
+                      <div className="assembly-code-box font-mono">
+                        <div className="assembly-code-line"><span className="asm-var">temporary value</span> → <span className="asm-reg">%eax</span></div>
+                        <div className="assembly-code-line"><span className="asm-var">arg 1</span> → <span className="asm-reg">%edi</span></div>
+                      </div>
+                      <div className="assembly-simulated-tag">(simplified explanation)</div>
+                    </div>
+                  </div>
+
+                  <ChevronRight size={18} className="assembly-arrow" />
+
+                  {/* Step 4: Target Instructions */}
+                  <div className="assembly-card">
+                    <div className="assembly-card-header">
+                      <span className="assembly-step-number">Step 4</span>
+                      <span className="assembly-card-title">Target Instructions</span>
+                    </div>
+                    <div className="assembly-card-body">
+                      <div className="assembly-card-desc">
+                        Instructions derived from assembly output:
+                      </div>
+                      <div className="assembly-pills-grid">
+                        {asmVisualData.instructions.map((inst, idx) => (
+                          <span key={idx} className="assembly-inst-pill font-mono">{inst}</span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  <ChevronRight size={18} className="assembly-arrow" />
+
+                  {/* Step 5: Assembly (main.s) */}
+                  <div className="assembly-card assembly-card-target">
+                    <div className="assembly-card-header">
+                      <span className="assembly-step-number">Step 5</span>
+                      <span className="assembly-card-title">Assembly (main.s)</span>
+                    </div>
+                    <div className="assembly-card-body">
+                      <div className="assembly-output-target font-mono">main.s</div>
+                      <div className="assembly-card-desc">
+                        Target-specific assembly generated.
+                      </div>
                     </div>
                   </div>
                 </div>

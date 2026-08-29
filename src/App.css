@@ -648,9 +648,10 @@
   font-size: 0.78rem;
   font-weight: 600;
   color: var(--text-main);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  word-break: break-word;
+  line-height: 1.15;
+  text-align: right;
 }
 
 .llvm-card-body {
@@ -835,9 +836,10 @@
   font-size: 0.78rem;
   font-weight: 600;
   color: var(--text-main);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  word-break: break-word;
+  line-height: 1.15;
+  text-align: right;
 }
 
 .assembly-card-body {
@@ -1007,9 +1009,10 @@
   font-size: 0.78rem;
   font-weight: 600;
   color: var(--text-main);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  word-break: break-word;
+  line-height: 1.15;
+  text-align: right;
 }
 
 .object-card-body {

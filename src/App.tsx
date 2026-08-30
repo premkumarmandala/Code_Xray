@@ -715,7 +715,7 @@ export function App() {
   // Split raw file text into raw lines
   const rawFileLines = rawFileContent.split('\n');
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_BASE = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? 'https://codexray-backend-hpqy.onrender.com' : 'http://localhost:8000');
 
   // Trigger backend fetch for raw files when code changes or app mounts
   const fetchRawBackendArtifacts = async (sourceCode: string): Promise<any> => {

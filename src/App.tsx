@@ -630,12 +630,9 @@ export function App() {
     '[CodeXRay Ready] Direct raw file viewer active. Select any compilation stage below to view its full raw file.'
   ]);
   const [copied, setCopied] = useState<boolean>(false);
-<<<<<<< HEAD
   const [currentView, setCurrentView] = useState<'pipeline' | 'callstack'>('pipeline');
-=======
   const [showCallStack, setShowCallStack] = useState<boolean>(false);
   const [modalStageId, setModalStageId] = useState<string | null>(null);
->>>>>>> 2a18c91 (updated UI)
   const [loadingCallStack, setLoadingCallStack] = useState<boolean>(false);
   const [debugData, setDebugData] = useState<DebugData | null>(null);
 
@@ -1372,21 +1369,103 @@ const API_BASE = rawApiBase.replace(/\/+$/, '');
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 160px auto 1.2fr', gap: '0.5rem', alignItems: 'center', background: '#050811', border: '1px solid #1e293b', borderRadius: '8px', padding: '1rem' }}>
-                  {/* Left Source & Headers Node */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                    <div style={{ padding: '0.6rem', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px' }}>
-                      <div style={{ fontSize: '0.75rem', color: '#38bdf8', fontWeight: 700, marginBottom: '0.3rem' }}>main.c</div>
-                      <pre className="font-mono" style={{ fontSize: '0.72rem', color: '#cbd5e1', margin: 0, lineHeight: 1.5 }}>
-                        {code ? code.split('\n').slice(0, 3).join('\n') : '#include <stdio.h>\n#define A 10'}
-                      </pre>
-                    </div>
+                  {/* Left Source & Context Node */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', minWidth: 0 }}>
+                    {(() => {
+                      const activeStep = preprocessingStep <= 1 ? 1 : Math.min(preprocessingStep, 5);
+                      
+                      // Extract components for detailed step display
+                      const sourceLines = code ? code.split('\n') : [];
+                      const includesList = detectedIncludes.length > 0 ? detectedIncludes : ['#include <stdio.h>'];
+                      
+                      // For Step 2: Extract definitions and macros
+                      const macroDefs = sourceLines.filter(l => l.trim().startsWith('#define'));
+                      const nonMacroCode = sourceLines.filter(l => !l.trim().startsWith('#define') && !l.trim().startsWith('#include')).join('\n');
+                      
+                      // For Step 3: Lines with comments vs without comments
+                      const commentLines = sourceLines.filter(l => l.includes('//') || l.includes('/*'));
+                      
+                      // For Step 4: Line markers
+                      const lineMarkerSample = `# 1 "main.c"\n# 1 "<built-in>"\n# 1 "<command-line>"\n# 1 "main.c"`;
 
-                    <div style={{ padding: '0.6rem', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px' }}>
-                      <div style={{ fontSize: '0.75rem', color: '#c084fc', fontWeight: 700, marginBottom: '0.3rem' }}>stdio.h (Header File)</div>
-                      <div style={{ fontSize: '0.7rem', color: '#94a3b8', lineHeight: 1.4 }}>
-                        Other Headers includes, header stdio.h, stdlib.h...
-                      </div>
-                    </div>
+                      if (activeStep === 1) {
+                        return (
+                          <>
+                            <div style={{ padding: '0.6rem', background: '#0f172a', border: '1px solid #38bdf8', borderRadius: '6px' }}>
+                              <div style={{ fontSize: '0.75rem', color: '#38bdf8', fontWeight: 700, marginBottom: '0.3rem' }}>main.c (Header Directives)</div>
+                              <div className="font-mono" style={{ fontSize: '0.72rem', color: '#cbd5e1', maxHeight: '100px', overflowY: 'auto', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
+                                {includesList.join('\n')}
+                              </div>
+                            </div>
+
+                            <div style={{ padding: '0.6rem', background: '#0f172a', border: '1px solid #c084fc', borderRadius: '6px' }}>
+                              <div style={{ fontSize: '0.75rem', color: '#c084fc', fontWeight: 700, marginBottom: '0.3rem' }}>Included Header File Contents</div>
+                              <div className="font-mono" style={{ fontSize: '0.7rem', color: '#94a3b8', maxHeight: '100px', overflowY: 'auto', lineHeight: 1.4, whiteSpace: 'pre-wrap' }}>
+                                {rawFileLines.length > 20 ? rawFileLines.slice(0, 8).join('\n') + '\n... (system headers inserted)' : '/* stdio.h contents: declarations of printf, scanf, FILE, NULL, etc. */\ntypedef struct _IO_FILE FILE;\nextern int printf (const char *__restrict __format, ...);'}
+                              </div>
+                            </div>
+                          </>
+                        );
+                      } else if (activeStep === 2) {
+                        return (
+                          <>
+                            <div style={{ padding: '0.6rem', background: '#0f172a', border: '1px solid #f59e0b', borderRadius: '6px' }}>
+                              <div style={{ fontSize: '0.75rem', color: '#f59e0b', fontWeight: 700, marginBottom: '0.3rem' }}>Defined Macros (#define)</div>
+                              <div className="font-mono" style={{ fontSize: '0.72rem', color: '#fde68a', maxHeight: '90px', overflowY: 'auto', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
+                                {macroDefs.length > 0 ? macroDefs.join('\n') : '#define MULTIPLIER 2'}
+                              </div>
+                            </div>
+
+                            <div style={{ padding: '0.6rem', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px' }}>
+                              <div style={{ fontSize: '0.75rem', color: '#38bdf8', fontWeight: 700, marginBottom: '0.3rem' }}>Source Code Before Expansion</div>
+                              <div className="font-mono" style={{ fontSize: '0.7rem', color: '#94a3b8', maxHeight: '90px', overflowY: 'auto', lineHeight: 1.4, whiteSpace: 'pre-wrap' }}>
+                                {code || 'int result = val * MULTIPLIER;'}
+                              </div>
+                            </div>
+                          </>
+                        );
+                      } else if (activeStep === 3) {
+                        return (
+                          <>
+                            <div style={{ padding: '0.6rem', background: '#0f172a', border: '1px solid #ef4444', borderRadius: '6px' }}>
+                              <div style={{ fontSize: '0.75rem', color: '#f87171', fontWeight: 700, marginBottom: '0.3rem' }}>Source Code with Comments</div>
+                              <div className="font-mono" style={{ fontSize: '0.72rem', color: '#cbd5e1', maxHeight: '180px', overflowY: 'auto', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
+                                {commentLines.length > 0 ? commentLines.join('\n') : '// Calculate value\nint x = 10; /* store initial */\n/* multi-line comment\n   explaining process */'}
+                              </div>
+                            </div>
+                          </>
+                        );
+                      } else if (activeStep === 4) {
+                        return (
+                          <>
+                            <div style={{ padding: '0.6rem', background: '#0f172a', border: '1px solid #a855f7', borderRadius: '6px' }}>
+                              <div style={{ fontSize: '0.75rem', color: '#c084fc', fontWeight: 700, marginBottom: '0.3rem' }}>Compiler Line Directive System</div>
+                              <div className="font-mono" style={{ fontSize: '0.72rem', color: '#e9d5ff', maxHeight: '180px', overflowY: 'auto', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
+                                {lineMarkerSample}\n# 15 "main.c" 2
+                              </div>
+                            </div>
+                          </>
+                        );
+                      } else {
+                        return (
+                          <>
+                            <div style={{ padding: '0.6rem', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px' }}>
+                              <div style={{ fontSize: '0.75rem', color: '#38bdf8', fontWeight: 700, marginBottom: '0.3rem' }}>Original main.c Source</div>
+                              <div className="font-mono" style={{ fontSize: '0.72rem', color: '#cbd5e1', maxHeight: '90px', overflowY: 'auto', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
+                                {code ? code.split('\n').slice(0, 6).join('\n') : '#include <stdio.h>\nint main() {\n  return 0;\n}'}
+                              </div>
+                            </div>
+
+                            <div style={{ padding: '0.6rem', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px' }}>
+                              <div style={{ fontSize: '0.75rem', color: '#c084fc', fontWeight: 700, marginBottom: '0.3rem' }}>Detected Directives</div>
+                              <div className="font-mono" style={{ fontSize: '0.7rem', color: '#94a3b8', maxHeight: '90px', overflowY: 'auto', lineHeight: 1.4, whiteSpace: 'pre-wrap' }}>
+                                Includes: {detectedIncludes.length}\nMacros: {detectedMacros.length}
+                              </div>
+                            </div>
+                          </>
+                        );
+                      }
+                    })()}
                   </div>
 
                   {/* Flow Arrow Line to Center */}
@@ -1401,18 +1480,85 @@ const API_BASE = rawApiBase.replace(/\/+$/, '');
                   {/* Flow Arrow Line to Output */}
                   <div className={`prep-flow-line ${preprocessingStep >= 5 || isPrepCompleted ? 'active' : 'dimmed'}`} />
 
-                  {/* Right Generated File Node */}
-                  <div style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', overflow: 'hidden' }}>
-                    <div style={{ padding: '0.5rem 0.75rem', background: '#1e293b', fontSize: '0.75rem', fontWeight: 700, color: '#4ade80', borderBottom: '1px solid #334155' }}>
-                      main.i (Generated)
-                    </div>
-                    <div className="font-mono" style={{ padding: '0.6rem', fontSize: '0.72rem', color: '#cbd5e1', maxHeight: '200px', overflowY: 'auto', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
-                      {rawFileLines.length > 0 && rawFileContent.trim() !== '' ? (
-                        rawFileLines.slice(0, 12).join('\n') + (rawFileLines.length > 12 ? '\n... (lines hidden)' : '')
-                      ) : (
-                        '# 1 "main.c"\n# 1 "<built-in>"\n# 1 "/usr/include/stdio.h"\n...'
-                      )}
-                    </div>
+                  {/* Right Generated File / Step Transformation Node */}
+                  <div style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', overflow: 'hidden', minWidth: 0 }}>
+                    {(() => {
+                      const activeStep = preprocessingStep <= 1 ? 1 : Math.min(preprocessingStep, 5);
+
+                      if (activeStep === 1) {
+                        return (
+                          <>
+                            <div style={{ padding: '0.5rem 0.75rem', background: '#1e293b', fontSize: '0.75rem', fontWeight: 700, color: '#38bdf8', borderBottom: '1px solid #334155' }}>
+                              Header Expansion Result
+                            </div>
+                            <div className="font-mono" style={{ padding: '0.6rem', fontSize: '0.72rem', color: '#cbd5e1', maxHeight: '200px', overflowY: 'auto', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
+                              {rawFileLines.length > 0 && rawFileContent.trim() !== '' ? (
+                                rawFileLines.slice(0, 15).join('\n') + '\n... (stdio.h declarations pasted in-place)'
+                              ) : (
+                                '/* stdio.h content inserted */\nextern int printf(const char *, ...);\nextern int scanf(const char *, ...);\n\nint main() { ... }'
+                              )}
+                            </div>
+                          </>
+                        );
+                      } else if (activeStep === 2) {
+                        // Highlight macro replacements
+                        const macroReplacements = detectedMacros.length > 0 ? detectedMacros.join('\n') : 'MULTIPLIER → 2';
+                        return (
+                          <>
+                            <div style={{ padding: '0.5rem 0.75rem', background: '#1e293b', fontSize: '0.75rem', fontWeight: 700, color: '#f59e0b', borderBottom: '1px solid #334155' }}>
+                              Macro Substitution Result
+                            </div>
+                            <div className="font-mono" style={{ padding: '0.6rem', fontSize: '0.72rem', color: '#cbd5e1', maxHeight: '200px', overflowY: 'auto', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
+                              <div style={{ color: '#fbbf24', fontWeight: 600, marginBottom: '0.4rem', padding: '0.2rem 0.4rem', background: 'rgba(245, 158, 11, 0.15)', borderRadius: '4px' }}>
+                                Replaced identifiers: {macroReplacements}
+                              </div>
+                              {code ? code.replace(/#define\s+\w+.*(\n|$)/g, '').replace(/MULTIPLIER/g, '2') : 'int result = val * 2;'}
+                            </div>
+                          </>
+                        );
+                      } else if (activeStep === 3) {
+                        // Strip comments from code
+                        const strippedCode = code 
+                          ? code.replace(/\/\*[\s\S]*?\*\/|\/\/.*/g, '') 
+                          : 'int x = 10;';
+                        return (
+                          <>
+                            <div style={{ padding: '0.5rem 0.75rem', background: '#1e293b', fontSize: '0.75rem', fontWeight: 700, color: '#4ade80', borderBottom: '1px solid #334155' }}>
+                              Clean Code (Comments Stripped)
+                            </div>
+                            <div className="font-mono" style={{ padding: '0.6rem', fontSize: '0.72rem', color: '#4ade80', maxHeight: '200px', overflowY: 'auto', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
+                              {strippedCode}
+                            </div>
+                          </>
+                        );
+                      } else if (activeStep === 4) {
+                        return (
+                          <>
+                            <div style={{ padding: '0.5rem 0.75rem', background: '#1e293b', fontSize: '0.75rem', fontWeight: 700, color: '#c084fc', borderBottom: '1px solid #334155' }}>
+                              Line Markers Inserted
+                            </div>
+                            <div className="font-mono" style={{ padding: '0.6rem', fontSize: '0.72rem', color: '#e9d5ff', maxHeight: '200px', overflowY: 'auto', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
+                              {`# 1 "main.c"\n# 1 "<built-in>"\n# 1 "<command-line>"\n# 1 "main.c"\n# 1 "/usr/include/stdio.h" 1 3 4\n...\n# 2 "main.c" 2\n` + (code ? code.split('\n').slice(0, 6).join('\n') : 'int main() {\n  return 0;\n}')}
+                            </div>
+                          </>
+                        );
+                      } else {
+                        return (
+                          <>
+                            <div style={{ padding: '0.5rem 0.75rem', background: '#1e293b', fontSize: '0.75rem', fontWeight: 700, color: '#4ade80', borderBottom: '1px solid #334155' }}>
+                              main.i (Complete Real Output)
+                            </div>
+                            <div className="font-mono" style={{ padding: '0.6rem', fontSize: '0.72rem', color: '#cbd5e1', maxHeight: '200px', overflowY: 'auto', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
+                              {rawFileLines.length > 0 && rawFileContent.trim() !== '' ? (
+                                rawFileLines.join('\n')
+                              ) : (
+                                '# 1 "main.c"\n# 1 "<built-in>"\n# 1 "/usr/include/stdio.h"\n...\nint main() {\n  return 0;\n}'
+                              )}
+                            </div>
+                          </>
+                        );
+                      }
+                    })()}
                   </div>
                 </div>
 
@@ -2015,11 +2161,11 @@ const API_BASE = rawApiBase.replace(/\/+$/, '');
                 <span className="panel-header-title">{selectedStageMeta.name} Breakdown</span>
               </div>
               <div className="explanation-panel-body">
-                {selectedStageId === 'preprocessing' && preprocessingStep > 0 && stageArtifacts['preprocessing']?.status !== 'completed' ? (
+                {selectedStageId === 'preprocessing' ? (
                   <div className="explanation-section">
                     <span className="explanation-section-title">
-                      Active Step {preprocessingStep}: {
-                        preprocessingStep === 1 ? 'Include Headers' :
+                      Active Step {preprocessingStep <= 1 ? 1 : Math.min(preprocessingStep, 5)}: {
+                        (preprocessingStep <= 1) ? 'Include Headers' :
                         preprocessingStep === 2 ? 'Expand Macros' :
                         preprocessingStep === 3 ? 'Remove Comments' :
                         preprocessingStep === 4 ? 'Add Line Markers' :
@@ -2028,7 +2174,7 @@ const API_BASE = rawApiBase.replace(/\/+$/, '');
                     </span>
                     <p className="explanation-section-text">
                       {
-                        preprocessingStep === 1 ? 'The preprocessor parses #include directives, locates header files (e.g. <stdio.h>), and pastes their contents directly into the translation unit.' :
+                        (preprocessingStep <= 1) ? 'The preprocessor parses #include directives, locates header files (e.g. <stdio.h>), and pastes their contents directly into the translation unit.' :
                         preprocessingStep === 2 ? 'Replaces macro identifiers and function-like macros (#define) with their defined values and processes conditional compilation directives (#ifdef).' :
                         preprocessingStep === 3 ? 'Strips all single-line (//) and multi-line (/* */) comments from the source code, replacing them with whitespace.' :
                         preprocessingStep === 4 ? 'Inserts # line directives to maintain source file name and line number mapping for error reporting.' :

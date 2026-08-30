@@ -1,5 +1,5 @@
 import { useState, useEffect, Fragment } from 'react';
-import { Layers, ArrowDown, Cpu, ArrowLeft, Loader2, Code2, AlertTriangle, Play, Pause, Database, HardDrive } from 'lucide-react';
+import { Layers, ArrowDown, ArrowLeft, Loader2, Code2, AlertTriangle, HardDrive } from 'lucide-react';
 import { MemoryVisualization, getVariableAddress } from './MemoryVisualization';
 
 export interface VariableInfo {
@@ -38,58 +38,28 @@ interface CallStackModalProps {
 
 export function CallStackModal({ code, debugData, loading, onClose, initialTab = 'stack' }: CallStackModalProps) {
   const [selectedFrameIndex, setSelectedFrameIndex] = useState<number | null>(null);
-  const [animatingFrame, setAnimatingFrame] = useState<number | null>(null);
-  const [isAutoStepping, setIsAutoStepping] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<'stack' | 'memory'>(initialTab);
-  const stepSpeed = 1000;
 
   const frames = debugData?.frames || [];
   
-  // Set initial selected frame when frames are loaded
+  // Set initial selected frame when frames load
   useEffect(() => {
     if (frames.length > 0) {
-      const firstIdx = frames[0].index;
-      setSelectedFrameIndex(firstIdx);
-      setAnimatingFrame(firstIdx);
+      setSelectedFrameIndex(frames[0].index);
     } else {
       setSelectedFrameIndex(null);
-      setAnimatingFrame(null);
     }
   }, [debugData]);
 
-  // Handle frame selection with visual activation state
+  // Handle manual frame selection by user
   const handleSelectFrame = (idx: number) => {
     setSelectedFrameIndex(idx);
-    setAnimatingFrame(idx);
   };
-
-  // Auto-play through frames (top to bottom backtrace simulation)
-  useEffect(() => {
-    let timer: any = null;
-    if (isAutoStepping && frames.length > 0) {
-      timer = setInterval(() => {
-        setSelectedFrameIndex((prev) => {
-          if (prev === null) return frames[0].index;
-          const currentPos = frames.findIndex(f => f.index === prev);
-          if (currentPos < 0 || currentPos >= frames.length - 1) {
-            setIsAutoStepping(false);
-            return prev;
-          }
-          const nextIndex = frames[currentPos + 1].index;
-          setAnimatingFrame(nextIndex);
-          return nextIndex;
-        });
-      }, stepSpeed);
-    }
-    return () => {
-      if (timer) clearInterval(timer);
-    };
-  }, [isAutoStepping, frames, stepSpeed]);
 
   const selectedFrame = frames.find((f) => f.index === selectedFrameIndex) || (frames.length > 0 ? frames[0] : null);
   const codeLines = code.split('\n');
 
-  // Scroll active line into view inside code area when selected frame changes
+  // Scroll active line into view inside source code panel when selected frame changes
   useEffect(() => {
     if (activeTab === 'stack' && selectedFrame?.line) {
       const activeLineElem = document.getElementById(`stack-source-line-${selectedFrame.line}`);
@@ -102,7 +72,7 @@ export function CallStackModal({ code, debugData, loading, onClose, initialTab =
   return (
     <div className="callstack-page-view">
       <div className="callstack-page-container">
-        {/* Header Bar */}
+        {/* Top Header Navigation */}
         <div className="callstack-header">
           <div className="callstack-title-group">
             <Layers className="text-primary" size={22} />
@@ -156,89 +126,48 @@ export function CallStackModal({ code, debugData, loading, onClose, initialTab =
         ) : (
           /* Call Stack View */
           <div className="callstack-body-grid">
-            {/* Left Panel: Call Stack Navigation & Visual Flow */}
+            {/* Left Panel: Full List of Call Stack Frames */}
             <aside className="callstack-nav-panel">
               <div className="section-subtitle-bar">
-                <h3 className="section-subtitle">CALL STACK (DEPTH: {frames.length})</h3>
-                {frames.length > 1 && (
-                  <div className="stack-anim-controls">
-                    <button 
-                      className={`anim-btn ${isAutoStepping ? 'active' : ''}`}
-                      onClick={() => setIsAutoStepping(!isAutoStepping)}
-                      title={isAutoStepping ? "Pause Stack Walk" : "Step Through Call Stack"}
-                    >
-                      {isAutoStepping ? <Pause size={13} /> : <Play size={13} />}
-                      {isAutoStepping ? 'Pause' : 'Animate'}
-                    </button>
-                  </div>
-                )}
+                <h3 className="section-subtitle">CALL STACK FRAMES ({frames.length})</h3>
               </div>
               
-              {/* Stack Flow Visual Tree */}
+              {/* Scrollable Frame Selection List */}
               <div className="stack-tree-list">
-                {frames.map((frame, idx) => {
-                  const isSelected = frame.index === selectedFrameIndex;
-                  const isAnimating = frame.index === animatingFrame;
-                  return (
-                    <Fragment key={frame.index}>
-                      <div 
-                        className={`frame-card ${isSelected ? 'selected' : ''} ${isAnimating ? 'pulse-frame' : ''}`}
-                        onClick={() => handleSelectFrame(frame.index)}
-                        style={{ animationDelay: `${idx * 0.12}s` }}
-                      >
-                        <div className="frame-badge">Frame #{frame.index}</div>
-                        <div className="frame-details">
-                          <span className="frame-func">{frame.function}()</span>
-                          <span className="frame-loc">{frame.filename}:{frame.line || '?'}</span>
+                {frames.length === 0 ? (
+                  <div className="no-vars-msg">No active frames captured.</div>
+                ) : (
+                  frames.map((frame, idx) => {
+                    const isSelected = frame.index === selectedFrameIndex;
+                    return (
+                      <Fragment key={frame.index}>
+                        <div 
+                          className={`frame-card ${isSelected ? 'selected' : ''}`}
+                          onClick={() => handleSelectFrame(frame.index)}
+                        >
+                          <div className="frame-badge">Frame #{frame.index}</div>
+                          <div className="frame-details">
+                            <span className="frame-func">{frame.function}()</span>
+                            <span className="frame-loc">{frame.filename}:{frame.line || '?'}</span>
+                          </div>
+                          {isSelected && <span className="frame-active-tag">Selected</span>}
                         </div>
-                        {isSelected && <span className="frame-active-tag">Active</span>}
-                      </div>
 
-                      {idx < frames.length - 1 && (
-                        <div className={`frame-arrow ${isSelected ? 'arrow-active' : ''}`}>
-                          <ArrowDown size={14} className="bouncing-arrow" />
-                        </div>
-                      )}
-                    </Fragment>
-                  );
-                })}
-              </div>
-
-              {/* Memory Quick Switch Banner */}
-              <div className="memory-switch-banner" onClick={() => setActiveTab('memory')}>
-                <div className="banner-icon">
-                  <Database size={18} className="text-cyan" />
-                </div>
-                <div className="banner-text">
-                  <span className="banner-title">View Memory Visualization</span>
-                  <span className="banner-sub">Inspect RAM address layout & system bus</span>
-                </div>
-              </div>
-
-              {/* Registers Box */}
-              <div className="registers-box">
-                <div className="registers-title">
-                  <Cpu size={16} color="var(--primary)" />
-                  <span>CPU Registers</span>
-                </div>
-                <div className="registers-grid">
-                  {debugData.registers && Object.keys(debugData.registers).length > 0 ? (
-                    Object.entries(debugData.registers).map(([reg, val]) => (
-                      <div key={reg} className="reg-row">
-                        <span className="reg-name">{reg}:</span>
-                        <span className="reg-val">{val || 'N/A'}</span>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="no-vars-msg">No register values available.</div>
-                  )}
-                </div>
+                        {idx < frames.length - 1 && (
+                          <div className={`frame-arrow ${isSelected ? 'arrow-active' : ''}`}>
+                            <ArrowDown size={14} className="bouncing-arrow" />
+                          </div>
+                        )}
+                      </Fragment>
+                    );
+                  })
+                )}
               </div>
             </aside>
 
-            {/* Right Panel: Frame Variables & Source Line Highlighting */}
+            {/* Right Panel: Selected Frame Variables & Source Line Highlighting */}
             <section className="callstack-details-panel">
-              {/* Frame Metadata Bar */}
+              {/* Selected Frame Metadata Bar */}
               <div className="frame-meta-bar">
                 <div>
                   <span className="meta-label">Selected Frame:</span>
@@ -256,14 +185,10 @@ export function CallStackModal({ code, debugData, loading, onClose, initialTab =
                 )}
               </div>
 
-              {/* Variables Table */}
+              {/* Variables Table for Selected Frame */}
               <div className="variables-section">
                 <div className="vars-header-row">
-                  <h3 className="section-subtitle">LOCAL VARIABLES & PARAMETERS (FRAME #{selectedFrame?.index ?? '0'})</h3>
-                  <button className="goto-memory-btn" onClick={() => setActiveTab('memory')}>
-                    <Database size={13} />
-                    View in Memory Visualization
-                  </button>
+                  <h3 className="section-subtitle">FRAME #{selectedFrame?.index ?? '0'} LOCAL VARIABLES & PARAMETERS</h3>
                 </div>
                 {selectedFrame?.variables && selectedFrame.variables.length > 0 ? (
                   <table className="variables-table">
@@ -281,7 +206,14 @@ export function CallStackModal({ code, debugData, loading, onClose, initialTab =
                           <td className="var-name">{v.name}</td>
                           <td className="var-type">{v.type}</td>
                           <td className="var-val">{v.value}</td>
-                          <td className="var-addr font-mono">{getVariableAddress(v, selectedFrame?.index ?? 0, i, debugData?.registers?.rbp || debugData?.registers?.RBP)}</td>
+                          <td className="var-addr font-mono">
+                            {getVariableAddress(
+                              v, 
+                              selectedFrame?.index ?? 0, 
+                              i, 
+                              debugData?.registers?.rbp || debugData?.registers?.RBP
+                            )}
+                          </td>
                         </tr>
                       ))}
                     </tbody>

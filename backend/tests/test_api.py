@@ -5,9 +5,10 @@ client = TestClient(app)
 
 
 def test_health_check():
-    response = client.get("/api/health")
-    assert response.status_code == 200
-    assert response.json() == {"status": "ok", "service": "CodeXRay Backend API"}
+    for endpoint in ["/", "/health", "/api/health"]:
+        response = client.get(endpoint)
+        assert response.status_code == 200
+        assert response.json() == {"status": "ok", "service": "CodeXRay Backend API"}
 
 
 def test_compile_endpoint_schema():

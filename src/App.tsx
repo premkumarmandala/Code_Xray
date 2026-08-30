@@ -55,48 +55,6 @@ interface StageArtifactState {
   status: 'pending' | 'running' | 'completed' | 'error';
 }
 
-function getIncludes(sourceCode: string): string[] {
-  const includes: string[] = [];
-  const lines = sourceCode.split('\n');
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (trimmed.startsWith('#')) {
-      const match = trimmed.match(/^#\s*include\s+(<[^>]+>|"[^"]+")/);
-      if (match) {
-        includes.push(`#include ${match[1]}`);
-      }
-    }
-  }
-  return includes;
-}
-
-function getMacros(sourceCode: string): string[] {
-  const macros: string[] = [];
-  const lines = sourceCode.split('\n');
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (trimmed.startsWith('#')) {
-      const match = trimmed.match(/^#\s*define\s+([A-Za-z_][A-Za-z0-9_]*(?:\([^)]*\))?)(?:\s+(.*))?$/);
-      if (match) {
-        const name = match[1];
-        let val = match[2] ? match[2].trim() : '';
-        if (val.includes('//')) {
-          val = val.split('//')[0].trim();
-        }
-        if (val.includes('/*')) {
-          val = val.replace(/\/\*.*?\*\//g, '').trim();
-        }
-        if (val) {
-          macros.push(`${name} → ${val}`);
-        } else {
-          macros.push(name);
-        }
-      }
-    }
-  }
-  return macros;
-}
-
 interface LlvmVisualData {
   tokens: string[];
   ast: {
@@ -631,8 +589,11 @@ export function App() {
   ]);
   const [copied, setCopied] = useState<boolean>(false);
   const [currentView, setCurrentView] = useState<'pipeline' | 'callstack'>('pipeline');
+<<<<<<< HEAD
   const [showCallStack, setShowCallStack] = useState<boolean>(false);
   const [modalStageId, setModalStageId] = useState<string | null>(null);
+=======
+>>>>>>> 907e37f (conflit update)
   const [loadingCallStack, setLoadingCallStack] = useState<boolean>(false);
   const [debugData, setDebugData] = useState<DebugData | null>(null);
 
@@ -1331,23 +1292,7 @@ const API_BASE = rawApiBase.replace(/\/+$/, '');
             <div className="workspace-stage-main">
               {/* Preprocessing Stage Flow Visualizer */}
           {selectedStageId === 'preprocessing' && (() => {
-            const detectedIncludes = getIncludes(code);
-            const detectedMacros = getMacros(code);
-
-            const displayIncludes = detectedIncludes.slice(0, 3);
-            const hasMoreIncludes = detectedIncludes.length > 3;
-
-            const displayMacros = detectedMacros.slice(0, 3);
-            const hasMoreMacros = detectedMacros.length > 3;
-
             const isPrepCompleted = stageArtifacts['preprocessing']?.status === 'completed';
-
-            const getStepClass = (stepNum: number) => {
-              if (isPrepCompleted || preprocessingStep > stepNum) return 'completed';
-              if (preprocessingStep === stepNum) return 'running';
-              return 'pending';
-            };
-
             return (
               <div className="llvm-visual-flow" style={{ background: '#0b1329', border: '1px solid #1e293b', borderRadius: '10px', padding: '1rem' }}>
                 <div style={{ display: 'flex', gap: '0.4rem', marginBottom: '1rem', flexWrap: 'wrap' }}>

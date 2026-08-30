@@ -140,27 +140,25 @@
 .top-overview-container {
   display: flex;
   flex-direction: row;
-  align-items: flex-start;
-  gap: 0.75rem;
+  align-items: stretch;
+  gap: 1rem;
   width: 100%;
+  margin-bottom: 1.125rem;
 }
 
 /* Compilation Pipeline (Overview) Panel */
 .overview-pipeline-panel {
-  flex: 0 0 78%;
-  width: 78%;
+  flex: 1 1 65%;
   background-color: #0b1329;
   border: 1px solid #1e293b;
   border-radius: 12px;
-  padding: 0.65rem 0.85rem;
+  padding: 0.85rem 1rem;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
+  gap: 0.5rem;
   min-width: 0;
   box-sizing: border-box;
-  align-self: flex-start;
-  height: fit-content;
 }
 
 .overview-header {
@@ -350,19 +348,18 @@
 
 /* WHAT'S HAPPENING? Side Panel */
 .whats-happening-panel {
-  flex: 0 0 22%;
-  width: 22%;
+  flex: 0 0 350px;
+  width: 350px;
   background-color: #0b1329;
   border: 1px solid #1e293b;
   border-radius: 12px;
-  padding: 0.65rem 0.85rem;
+  padding: 0.85rem 1rem;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
-  min-width: 0;
-  align-self: flex-start;
-  max-height: 120px;
+  min-width: 280px;
+  max-width: 400px;
 }
 
 .whats-happening-header {
@@ -370,93 +367,135 @@
   align-items: center;
   justify-content: space-between;
   border-bottom: 1px solid #1e293b;
-  padding-bottom: 0.5rem;
-  margin-bottom: 0.5rem;
+  padding-bottom: 0.55rem;
+  margin-bottom: 0.6rem;
 }
 
 .whats-happening-title {
-  font-size: 0.88rem;
+  font-size: 0.85rem;
   font-weight: 800;
   letter-spacing: 0.05em;
   color: #38bdf8;
   text-transform: uppercase;
+  margin: 0;
 }
 
 .whats-happening-sub {
   font-size: 0.7rem;
-  color: #94a3b8;
+  font-weight: 500;
+  color: #64748b;
 }
 
 .whats-happening-list {
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
+  gap: 0.5rem;
+  max-height: 120px;
   overflow-y: auto;
-  padding-right: 0.25rem;
-  flex: 1;
+  padding-right: 0.35rem;
 }
 
 .whats-happening-list::-webkit-scrollbar {
-  width: 4px;
+  width: 5px;
+}
+
+.whats-happening-list::-webkit-scrollbar-track {
+  background: #0f172a;
+  border-radius: 3px;
 }
 
 .whats-happening-list::-webkit-scrollbar-thumb {
   background: #334155;
-  border-radius: 2px;
+  border-radius: 3px;
+}
+
+.whats-happening-list::-webkit-scrollbar-thumb:hover {
+  background: #475569;
 }
 
 .whats-happening-item {
-  padding: 0.45rem 0.6rem;
+  padding: 0.65rem 0.75rem;
   background-color: #0f172a;
   border: 1px solid #1e293b;
-  border-radius: 6px;
+  border-radius: 8px;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   display: flex;
   flex-direction: column;
-  gap: 0.2rem;
+  gap: 0.35rem;
+  position: relative;
+  opacity: 0.75;
 }
 
 .whats-happening-item:hover {
-  border-color: var(--stage-accent);
+  border-color: rgba(255, 255, 255, 0.25);
   background-color: #1e293b;
+  opacity: 0.95;
 }
 
 .whats-happening-item.active {
+  opacity: 1;
   border-color: var(--stage-accent);
-  background: rgba(56, 189, 248, 0.08);
-  box-shadow: inset 2px 0 0 var(--stage-accent);
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.95) 0%, rgba(30, 41, 59, 0.75) 100%);
+  box-shadow: 0 0 16px var(--stage-glow), inset 4px 0 0 var(--stage-accent);
 }
 
 .item-header {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.item-title-group {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.item-icon {
+  flex-shrink: 0;
+  filter: drop-shadow(0 0 3px var(--stage-accent));
 }
 
 .item-name {
-  font-size: 0.78rem;
+  font-size: 0.8rem;
   font-weight: 700;
   color: #f1f5f9;
-  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.whats-happening-item.active .item-name {
+  color: #ffffff;
 }
 
 .item-active-tag {
-  font-size: 0.62rem;
-  font-weight: 700;
+  font-size: 0.6rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
-  padding: 0.05rem 0.35rem;
-  border-radius: 3px;
-  background-color: rgba(56, 189, 248, 0.2);
-  color: #38bdf8;
-  border: 1px solid rgba(56, 189, 248, 0.4);
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  background-color: rgba(56, 189, 248, 0.15);
+  color: var(--stage-accent);
+  border: 1px solid var(--stage-accent);
+  box-shadow: 0 0 8px var(--stage-glow);
+  flex-shrink: 0;
 }
 
 .item-desc {
-  font-size: 0.72rem;
-  line-height: 1.3;
+  font-size: 0.75rem;
+  line-height: 1.45;
   color: #94a3b8;
   margin: 0;
+  word-break: break-word;
+}
+
+.whats-happening-item.active .item-desc {
+  color: #cbd5e1;
 }
 
 /* Horizontal Pipeline */
@@ -686,6 +725,7 @@
   grid-template-columns: 380px 1fr;
   gap: 1rem;
   flex: 1;
+  margin-top: 0;
 }
 
 @media (max-width: 1024px) {

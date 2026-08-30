@@ -148,7 +148,7 @@
 
 /* Compilation Pipeline (Overview) Panel */
 .overview-pipeline-panel {
-  flex: 1 1 65%;
+  flex: 1 1 72%;
   background-color: #0b1329;
   border: 1px solid #1e293b;
   border-radius: 12px;
@@ -210,19 +210,19 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.15rem;
-  overflow-x: hidden;
+  gap: 0.25rem;
+  overflow-x: auto;
   padding: 0.2rem 0;
 }
 
 .overview-stage-card {
-  flex: 1;
-  min-width: 0;
+  flex: 1 1 0%;
+  min-width: 82px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.4rem;
-  padding: 0.55rem 0.2rem;
+  gap: 0.25rem;
+  padding: 0.55rem 0.25rem;
   background-color: #0f172a;
   border: 1px solid #1e293b;
   border-radius: 8px;
@@ -230,6 +230,7 @@
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
   user-select: none;
+  box-sizing: border-box;
 }
 
 .overview-stage-card:hover {
@@ -261,14 +262,15 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
   background: #1e293b;
   border: 1px solid #334155;
   color: var(--stage-accent);
   box-shadow: 0 0 8px var(--stage-glow);
   transition: all 0.3s ease;
+  flex-shrink: 0;
 }
 
 .overview-stage-card:hover .overview-icon-container,
@@ -286,8 +288,8 @@
   position: absolute;
   top: -2px;
   right: -2px;
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -312,9 +314,20 @@
 }
 
 .overview-stage-name {
-  font-size: 0.7rem;
+  font-size: 0.68rem;
   font-weight: 600;
   color: #e2e8f0;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  width: 100%;
+}
+
+.overview-stage-status-sub {
+  font-size: 0.6rem;
+  color: #94a3b8;
+  text-transform: capitalize;
   text-align: center;
   white-space: nowrap;
   overflow: hidden;
@@ -329,7 +342,7 @@
   color: #334155;
   transition: color 0.3s ease;
   flex-shrink: 0;
-  margin: 0 -2px;
+  margin: 0;
 }
 
 .overview-connector.completed {
@@ -2357,6 +2370,7 @@
   100% { background: rgba(34, 197, 94, 0.35); }
 }
 
+<<<<<<< HEAD
 /* Header View Mode Tabs */
 .view-mode-tabs {
   display: flex;
@@ -3015,3 +3029,96 @@
   color: #64748b;
 }
 
+=======
+/* Preprocessor Flowchart Node Animation */
+.preprocessor-diagram-container {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.25rem;
+  background: #050811;
+  border: 1px solid #1e293b;
+  border-radius: 10px;
+  padding: 1.25rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.prep-node-file {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.75rem;
+  background: #0f172a;
+  border: 1px solid #3b82f6;
+  border-radius: 8px;
+  box-shadow: 0 0 12px rgba(59, 130, 246, 0.25);
+  transition: all 0.3s ease;
+  width: 120px;
+  text-align: center;
+}
+
+.prep-node-file.active {
+  box-shadow: 0 0 20px rgba(59, 130, 246, 0.6);
+  border-color: #60a5fa;
+  transform: scale(1.04);
+}
+
+.prep-node-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem 1rem;
+  background: radial-gradient(circle, #1e293b 0%, #0f172a 100%);
+  border: 1px solid #38bdf8;
+  border-radius: 12px;
+  box-shadow: 0 0 20px rgba(56, 189, 248, 0.35);
+  animation: pulse-preprocessor 2s infinite ease-in-out alternate;
+  width: 130px;
+  text-align: center;
+}
+
+@keyframes pulse-preprocessor {
+  0% { box-shadow: 0 0 10px rgba(56, 189, 248, 0.2); border-color: #0284c7; }
+  100% { box-shadow: 0 0 25px rgba(56, 189, 248, 0.6); border-color: #38bdf8; }
+}
+
+.prep-flow-line {
+  height: 2px;
+  width: 60px;
+  background: #38bdf8;
+  position: relative;
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.4);
+}
+
+.prep-flow-line.dimmed {
+  background: #334155;
+  box-shadow: none;
+}
+
+.prep-flow-line::after {
+  content: '';
+  position: absolute;
+  top: -3px;
+  left: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #38bdf8;
+  box-shadow: 0 0 10px #38bdf8, 0 0 18px #0284c7;
+  animation: flow-particle 1.2s infinite linear;
+}
+
+.prep-flow-line.dimmed::after {
+  display: none;
+}
+
+@keyframes flow-particle {
+  0% { left: 0%; opacity: 0; }
+  20% { opacity: 1; }
+  80% { opacity: 1; }
+  100% { left: 100%; opacity: 0; }
+}
+>>>>>>> 2a18c91 (updated UI)

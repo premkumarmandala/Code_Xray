@@ -630,7 +630,12 @@ export function App() {
     '[CodeXRay Ready] Direct raw file viewer active. Select any compilation stage below to view its full raw file.'
   ]);
   const [copied, setCopied] = useState<boolean>(false);
+<<<<<<< HEAD
   const [currentView, setCurrentView] = useState<'pipeline' | 'callstack'>('pipeline');
+=======
+  const [showCallStack, setShowCallStack] = useState<boolean>(false);
+  const [modalStageId, setModalStageId] = useState<string | null>(null);
+>>>>>>> 2a18c91 (updated UI)
   const [loadingCallStack, setLoadingCallStack] = useState<boolean>(false);
   const [debugData, setDebugData] = useState<DebugData | null>(null);
 
@@ -855,19 +860,20 @@ const API_BASE = rawApiBase.replace(/\/+$/, '');
     setIsVisualizing(false);
     setSelectedStageId('source');
     setPreprocessingStep(0);
+    setCode('');
 
     const resetArtifacts: Record<string, StageArtifactState> = {};
     COMPILATION_STAGES.forEach((s) => {
       resetArtifacts[s.id] = {
         inputFile: s.inputFile,
         outputFile: s.outputFile,
-        content: s.getArtifactContent(code),
+        content: '',
         status: 'pending'
       };
     });
 
     setStageArtifacts(resetArtifacts);
-    setLogs(['[CodeXRay Reset] Reset pipeline to initial source state.']);
+    setLogs(['[CodeXRay Reset] Reset pipeline and cleared source code.']);
   };
 
   const runVisualization = async () => {
@@ -1346,151 +1352,76 @@ const API_BASE = rawApiBase.replace(/\/+$/, '');
             };
 
             return (
-              <div className="llvm-visual-flow">
-                <div className="llvm-flow-title">Preprocessing Flow Pipeline</div>
+              <div className="llvm-visual-flow" style={{ background: '#0b1329', border: '1px solid #1e293b', borderRadius: '10px', padding: '1rem' }}>
+                <div style={{ display: 'flex', gap: '0.4rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
+                  <span style={{ padding: '0.35rem 0.75rem', borderRadius: '6px', background: preprocessingStep <= 1 ? '#4f46e5' : '#1e293b', color: '#ffffff', fontSize: '0.78rem', fontWeight: 600, border: '1px solid #6366f1' }}>
+                    1 Include Headers
+                  </span>
+                  <span style={{ padding: '0.35rem 0.75rem', borderRadius: '6px', background: preprocessingStep === 2 ? '#4f46e5' : '#1e293b', color: preprocessingStep === 2 ? '#ffffff' : '#94a3b8', fontSize: '0.78rem', border: '1px solid #334155' }}>
+                    2 Expand Macros
+                  </span>
+                  <span style={{ padding: '0.35rem 0.75rem', borderRadius: '6px', background: preprocessingStep === 3 ? '#4f46e5' : '#1e293b', color: preprocessingStep === 3 ? '#ffffff' : '#94a3b8', fontSize: '0.78rem', border: '1px solid #334155' }}>
+                    3 Remove Comments
+                  </span>
+                  <span style={{ padding: '0.35rem 0.75rem', borderRadius: '6px', background: preprocessingStep === 4 ? '#4f46e5' : '#1e293b', color: preprocessingStep === 4 ? '#ffffff' : '#94a3b8', fontSize: '0.78rem', border: '1px solid #334155' }}>
+                    4 Add Line Markers
+                  </span>
+                  <span style={{ padding: '0.35rem 0.75rem', borderRadius: '6px', background: preprocessingStep >= 5 ? '#4f46e5' : '#1e293b', color: preprocessingStep >= 5 ? '#ffffff' : '#94a3b8', fontSize: '0.78rem', border: '1px solid #334155' }}>
+                    5 Generate main.i
+                  </span>
+                </div>
 
-                <div className="llvm-cards-wrapper">
-                  {/* Step 1: Include Headers */}
-                  <div 
-                    className={`llvm-card ${getStepClass(1)}`}
-                    style={{
-                      borderColor: (getStepClass(1) === 'running' || getStepClass(1) === 'completed') ? '#60a5fa' : undefined,
-                      boxShadow: getStepClass(1) === 'running' ? '0 0 10px rgba(96, 165, 250, 0.4)' : undefined
-                    }}
-                  >
-                    <div className="llvm-card-header">
-                      <span className="llvm-step-number">Step 1</span>
-                      <span className="llvm-card-title" style={{ color: getStepClass(1) !== 'pending' ? '#60a5fa' : undefined }}>Include Headers</span>
-                      {getStepClass(1) === 'completed' && <Check size={12} color="#4ade80" />}
-                      {getStepClass(1) === 'running' && <Loader2 size={12} className="spinner" color="#60a5fa" />}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 160px auto 1.2fr', gap: '0.5rem', alignItems: 'center', background: '#050811', border: '1px solid #1e293b', borderRadius: '8px', padding: '1rem' }}>
+                  {/* Left Source & Headers Node */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                    <div style={{ padding: '0.6rem', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px' }}>
+                      <div style={{ fontSize: '0.75rem', color: '#38bdf8', fontWeight: 700, marginBottom: '0.3rem' }}>main.c</div>
+                      <pre className="font-mono" style={{ fontSize: '0.72rem', color: '#cbd5e1', margin: 0, lineHeight: 1.5 }}>
+                        {code ? code.split('\n').slice(0, 3).join('\n') : '#include <stdio.h>\n#define A 10'}
+                      </pre>
                     </div>
-                    <div className="llvm-card-body">
-                      <div className="llvm-card-desc">Replaces <code>#include</code> directives with header contents.</div>
-                      <div className="llvm-card-label" style={{ marginTop: '0.2rem' }}>Headers:</div>
-                      {displayIncludes.length === 0 ? (
-                        <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>No headers included</div>
+
+                    <div style={{ padding: '0.6rem', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px' }}>
+                      <div style={{ fontSize: '0.75rem', color: '#c084fc', fontWeight: 700, marginBottom: '0.3rem' }}>stdio.h (Header File)</div>
+                      <div style={{ fontSize: '0.7rem', color: '#94a3b8', lineHeight: 1.4 }}>
+                        Other Headers includes, header stdio.h, stdlib.h...
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Flow Arrow Line to Center */}
+                  <div className={`prep-flow-line ${preprocessingStep >= 1 ? 'active' : 'dimmed'}`} />
+
+                  {/* Center Node */}
+                  <div className="prep-node-center">
+                    <Cpu size={32} color="#38bdf8" />
+                    <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#f8fafc', marginTop: '0.5rem', letterSpacing: '0.04em' }}>C PREPROCESSOR</span>
+                  </div>
+
+                  {/* Flow Arrow Line to Output */}
+                  <div className={`prep-flow-line ${preprocessingStep >= 5 || isPrepCompleted ? 'active' : 'dimmed'}`} />
+
+                  {/* Right Generated File Node */}
+                  <div style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', overflow: 'hidden' }}>
+                    <div style={{ padding: '0.5rem 0.75rem', background: '#1e293b', fontSize: '0.75rem', fontWeight: 700, color: '#4ade80', borderBottom: '1px solid #334155' }}>
+                      main.i (Generated)
+                    </div>
+                    <div className="font-mono" style={{ padding: '0.6rem', fontSize: '0.72rem', color: '#cbd5e1', maxHeight: '200px', overflowY: 'auto', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
+                      {rawFileLines.length > 0 && rawFileContent.trim() !== '' ? (
+                        rawFileLines.slice(0, 12).join('\n') + (rawFileLines.length > 12 ? '\n... (lines hidden)' : '')
                       ) : (
-                        <div className="token-pills-grid">
-                          {displayIncludes.map((inc, i) => (
-                            <span key={i} className="token-pill">{inc}</span>
-                          ))}
-                          {hasMoreIncludes && <span className="token-pill">+{detectedIncludes.length - 3}</span>}
-                        </div>
+                        '# 1 "main.c"\n# 1 "<built-in>"\n# 1 "/usr/include/stdio.h"\n...'
                       )}
                     </div>
                   </div>
+                </div>
 
-                  <ChevronRight 
-                    size={18} 
-                    className="llvm-arrow" 
-                    style={{ color: (getStepClass(1) === 'completed' || getStepClass(2) === 'running') ? '#60a5fa' : undefined }} 
-                  />
-
-                  {/* Step 2: Expand Macros */}
-                  <div 
-                    className={`llvm-card ${getStepClass(2)}`}
-                    style={{
-                      borderColor: (getStepClass(2) === 'running' || getStepClass(2) === 'completed') ? '#60a5fa' : undefined,
-                      boxShadow: getStepClass(2) === 'running' ? '0 0 10px rgba(96, 165, 250, 0.4)' : undefined
-                    }}
-                  >
-                    <div className="llvm-card-header">
-                      <span className="llvm-step-number">Step 2</span>
-                      <span className="llvm-card-title" style={{ color: getStepClass(2) !== 'pending' ? '#60a5fa' : undefined }}>Expand Macros</span>
-                      {getStepClass(2) === 'completed' && <Check size={12} color="#4ade80" />}
-                      {getStepClass(2) === 'running' && <Loader2 size={12} className="spinner" color="#60a5fa" />}
-                    </div>
-                    <div className="llvm-card-body">
-                      <div className="llvm-card-desc">Expands <code>#define</code> macros &amp; processes conditionals.</div>
-                      <div className="llvm-card-label" style={{ marginTop: '0.2rem' }}>Macros:</div>
-                      {displayMacros.length === 0 ? (
-                        <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>No macros defined</div>
-                      ) : (
-                        <div className="token-pills-grid">
-                          {displayMacros.map((mac, i) => (
-                            <span key={i} className="token-pill">{mac}</span>
-                          ))}
-                          {hasMoreMacros && <span className="token-pill">+{detectedMacros.length - 3}</span>}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <ChevronRight 
-                    size={18} 
-                    className="llvm-arrow" 
-                    style={{ color: (getStepClass(2) === 'completed' || getStepClass(3) === 'running') ? '#60a5fa' : undefined }} 
-                  />
-
-                  {/* Step 3: Remove Comments */}
-                  <div 
-                    className={`llvm-card ${getStepClass(3)}`}
-                    style={{
-                      borderColor: (getStepClass(3) === 'running' || getStepClass(3) === 'completed') ? '#60a5fa' : undefined,
-                      boxShadow: getStepClass(3) === 'running' ? '0 0 10px rgba(96, 165, 250, 0.4)' : undefined
-                    }}
-                  >
-                    <div className="llvm-card-header">
-                      <span className="llvm-step-number">Step 3</span>
-                      <span className="llvm-card-title" style={{ color: getStepClass(3) !== 'pending' ? '#60a5fa' : undefined }}>Remove Comments</span>
-                      {getStepClass(3) === 'completed' && <Check size={12} color="#4ade80" />}
-                      {getStepClass(3) === 'running' && <Loader2 size={12} className="spinner" color="#60a5fa" />}
-                    </div>
-                    <div className="llvm-card-body">
-                      <div className="llvm-card-desc">Strips single-line <code>//</code> and block <code>/* */</code> comments, replacing them with whitespace.</div>
-                    </div>
-                  </div>
-
-                  <ChevronRight 
-                    size={18} 
-                    className="llvm-arrow" 
-                    style={{ color: (getStepClass(3) === 'completed' || getStepClass(4) === 'running') ? '#60a5fa' : undefined }} 
-                  />
-
-                  {/* Step 4: Add Line Markers */}
-                  <div 
-                    className={`llvm-card ${getStepClass(4)}`}
-                    style={{
-                      borderColor: (getStepClass(4) === 'running' || getStepClass(4) === 'completed') ? '#60a5fa' : undefined,
-                      boxShadow: getStepClass(4) === 'running' ? '0 0 10px rgba(96, 165, 250, 0.4)' : undefined
-                    }}
-                  >
-                    <div className="llvm-card-header">
-                      <span className="llvm-step-number">Step 4</span>
-                      <span className="llvm-card-title" style={{ color: getStepClass(4) !== 'pending' ? '#60a5fa' : undefined }}>Add Line Markers</span>
-                      {getStepClass(4) === 'completed' && <Check size={12} color="#4ade80" />}
-                      {getStepClass(4) === 'running' && <Loader2 size={12} className="spinner" color="#60a5fa" />}
-                    </div>
-                    <div className="llvm-card-body">
-                      <div className="llvm-card-desc">Inserts <code># linenum "file"</code> directives to track original source lines for compiler diagnostics.</div>
-                    </div>
-                  </div>
-
-                  <ChevronRight 
-                    size={18} 
-                    className="llvm-arrow" 
-                    style={{ color: (getStepClass(4) === 'completed' || getStepClass(5) === 'running') ? '#60a5fa' : undefined }} 
-                  />
-
-                  {/* Step 5: Generate main.i */}
-                  <div 
-                    className={`llvm-card llvm-card-target ${getStepClass(5)}`}
-                    style={{
-                      borderColor: (getStepClass(5) === 'running' || getStepClass(5) === 'completed') ? '#60a5fa' : undefined,
-                      boxShadow: getStepClass(5) === 'running' ? '0 0 10px rgba(96, 165, 250, 0.4)' : undefined
-                    }}
-                  >
-                    <div className="llvm-card-header">
-                      <span className="llvm-step-number">Step 5</span>
-                      <span className="llvm-card-title" style={{ color: getStepClass(5) !== 'pending' ? '#60a5fa' : undefined }}>Generate main.i</span>
-                      {getStepClass(5) === 'completed' && <Check size={12} color="#4ade80" />}
-                      {getStepClass(5) === 'running' && <Loader2 size={12} className="spinner" color="#60a5fa" />}
-                    </div>
-                    <div className="llvm-card-body">
-                      <div className="llvm-output-target font-mono">main.i</div>
-                      <div className="llvm-card-desc">Fully preprocessed C translation unit generated below.</div>
-                    </div>
-                  </div>
+                <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem', fontSize: '0.72rem', color: '#4ade80', flexWrap: 'wrap' }}>
+                  <span>✓ Reads source code</span>
+                  <span>✓ Includes header contents</span>
+                  <span>✓ Expands macros</span>
+                  <span>✓ Adds line markers</span>
+                  <span>✓ Produces preprocessed source</span>
                 </div>
               </div>
             );

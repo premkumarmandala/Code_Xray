@@ -1,11 +1,13 @@
-import React, { useState, useEffect } from 'react';
-import { Layers, ArrowDown, Cpu, ArrowLeft, Loader2, Code2, AlertTriangle, Play, Pause } from 'lucide-react';
+import { useState, useEffect, Fragment } from 'react';
+import { Layers, ArrowDown, Cpu, ArrowLeft, Loader2, Code2, AlertTriangle, Play, Pause, Database, HardDrive } from 'lucide-react';
+import { MemoryVisualization, getVariableAddress } from './MemoryVisualization';
 
 export interface VariableInfo {
   name: string;
   type: string;
   value: string;
   address?: string | null;
+  size_bytes?: number | null;
 }
 
 export interface StackFrame {
@@ -31,12 +33,14 @@ interface CallStackModalProps {
   debugData: DebugData | null;
   loading: boolean;
   onClose: () => void;
+  initialTab?: 'stack' | 'memory';
 }
 
-export function CallStackModal({ code, debugData, loading, onClose }: CallStackModalProps) {
+export function CallStackModal({ code, debugData, loading, onClose, initialTab = 'stack' }: CallStackModalProps) {
   const [selectedFrameIndex, setSelectedFrameIndex] = useState<number | null>(null);
   const [animatingFrame, setAnimatingFrame] = useState<number | null>(null);
   const [isAutoStepping, setIsAutoStepping] = useState<boolean>(false);
+  const [activeTab, setActiveTab] = useState<'stack' | 'memory'>(initialTab);
   const stepSpeed = 1000;
 
   const frames = debugData?.frames || [];
@@ -87,25 +91,43 @@ export function CallStackModal({ code, debugData, loading, onClose }: CallStackM
 
   // Scroll active line into view inside code area when selected frame changes
   useEffect(() => {
-    if (selectedFrame?.line) {
+    if (activeTab === 'stack' && selectedFrame?.line) {
       const activeLineElem = document.getElementById(`stack-source-line-${selectedFrame.line}`);
       if (activeLineElem) {
         activeLineElem.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
     }
-  }, [selectedFrameIndex, selectedFrame?.line]);
+  }, [selectedFrameIndex, selectedFrame?.line, activeTab]);
 
   return (
-    <div className="callstack-modal-overlay">
-      <div className="callstack-modal-content">
-        {/* Modal Header */}
+    <div className="callstack-page-view">
+      <div className="callstack-page-container">
+        {/* Header Bar */}
         <div className="callstack-header">
           <div className="callstack-title-group">
             <Layers className="text-primary" size={22} />
             <div>
-              <h2 className="callstack-modal-title">CodeXRay Execution Call Stack</h2>
-              <p className="callstack-modal-subtitle">Internal Debugger State (LLDB Backtrace, Frames & Variables)</p>
+              <h2 className="callstack-modal-title">CodeXRay Execution & Memory Explorer</h2>
+              <p className="callstack-modal-subtitle">Internal Debugger Backtrace & Real-time RAM Hardware Architecture</p>
             </div>
+          </div>
+
+          {/* Sub-Navigation Tabs */}
+          <div className="callstack-tab-switcher">
+            <button
+              className={`callstack-subtab-btn ${activeTab === 'stack' ? 'active' : ''}`}
+              onClick={() => setActiveTab('stack')}
+            >
+              <Layers size={15} />
+              <span>Call Stack & Frames</span>
+            </button>
+            <button
+              className={`callstack-subtab-btn memory-tab ${activeTab === 'memory' ? 'active' : ''}`}
+              onClick={() => setActiveTab('memory')}
+            >
+              <HardDrive size={15} />
+              <span>Memory Visualization</span>
+            </button>
           </div>
 
           <button className="reset-btn" onClick={onClose}>
@@ -117,14 +139,22 @@ export function CallStackModal({ code, debugData, loading, onClose }: CallStackM
         {loading ? (
           <div className="callstack-loading-state">
             <Loader2 size={32} className="spinner text-primary" />
-            <p>Collecting LLDB Call Stack & Memory State...</p>
+            <p>Collecting LLDB Call Stack & RAM Hardware State...</p>
           </div>
         ) : !debugData?.success ? (
           <div className="callstack-error-state">
             <AlertTriangle size={32} color="#ef4444" />
             <p>{debugData?.error_message || 'Failed to capture call stack information.'}</p>
           </div>
+        ) : activeTab === 'memory' ? (
+          /* Memory Visualization View */
+          <MemoryVisualization 
+            code={code} 
+            debugData={debugData} 
+            selectedFrameIndex={selectedFrameIndex} 
+          />
         ) : (
+          /* Call Stack View */
           <div className="callstack-body-grid">
             {/* Left Panel: Call Stack Navigation & Visual Flow */}
             <aside className="callstack-nav-panel">
@@ -150,7 +180,7 @@ export function CallStackModal({ code, debugData, loading, onClose }: CallStackM
                   const isSelected = frame.index === selectedFrameIndex;
                   const isAnimating = frame.index === animatingFrame;
                   return (
-                    <React.Fragment key={frame.index}>
+                    <Fragment key={frame.index}>
                       <div 
                         className={`frame-card ${isSelected ? 'selected' : ''} ${isAnimating ? 'pulse-frame' : ''}`}
                         onClick={() => handleSelectFrame(frame.index)}
@@ -169,9 +199,20 @@ export function CallStackModal({ code, debugData, loading, onClose }: CallStackM
                           <ArrowDown size={14} className="bouncing-arrow" />
                         </div>
                       )}
-                    </React.Fragment>
+                    </Fragment>
                   );
                 })}
+              </div>
+
+              {/* Memory Quick Switch Banner */}
+              <div className="memory-switch-banner" onClick={() => setActiveTab('memory')}>
+                <div className="banner-icon">
+                  <Database size={18} className="text-cyan" />
+                </div>
+                <div className="banner-text">
+                  <span className="banner-title">View Memory Visualization</span>
+                  <span className="banner-sub">Inspect RAM address layout & system bus</span>
+                </div>
               </div>
 
               {/* Registers Box */}
@@ -217,7 +258,13 @@ export function CallStackModal({ code, debugData, loading, onClose }: CallStackM
 
               {/* Variables Table */}
               <div className="variables-section">
-                <h3 className="section-subtitle">LOCAL VARIABLES & PARAMETERS (FRAME #{selectedFrame?.index ?? '0'})</h3>
+                <div className="vars-header-row">
+                  <h3 className="section-subtitle">LOCAL VARIABLES & PARAMETERS (FRAME #{selectedFrame?.index ?? '0'})</h3>
+                  <button className="goto-memory-btn" onClick={() => setActiveTab('memory')}>
+                    <Database size={13} />
+                    View in Memory Visualization
+                  </button>
+                </div>
                 {selectedFrame?.variables && selectedFrame.variables.length > 0 ? (
                   <table className="variables-table">
                     <thead>
@@ -234,7 +281,7 @@ export function CallStackModal({ code, debugData, loading, onClose }: CallStackM
                           <td className="var-name">{v.name}</td>
                           <td className="var-type">{v.type}</td>
                           <td className="var-val">{v.value}</td>
-                          <td className="var-addr">{v.address || 'N/A'}</td>
+                          <td className="var-addr font-mono">{getVariableAddress(v, selectedFrame?.index ?? 0, i, debugData?.registers?.rbp || debugData?.registers?.RBP)}</td>
                         </tr>
                       ))}
                     </tbody>

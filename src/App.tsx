@@ -630,7 +630,7 @@ export function App() {
     '[CodeXRay Ready] Direct raw file viewer active. Select any compilation stage below to view its full raw file.'
   ]);
   const [copied, setCopied] = useState<boolean>(false);
-  const [showCallStack, setShowCallStack] = useState<boolean>(false);
+  const [currentView, setCurrentView] = useState<'pipeline' | 'callstack'>('pipeline');
   const [loadingCallStack, setLoadingCallStack] = useState<boolean>(false);
   const [debugData, setDebugData] = useState<DebugData | null>(null);
 
@@ -791,11 +791,11 @@ const API_BASE = rawApiBase.replace(/\/+$/, '');
   }, []);
 
   const handleOpenCallStack = async () => {
-    if (showCallStack) {
-      setShowCallStack(false);
+    if (currentView === 'callstack') {
+      setCurrentView('pipeline');
       return;
     }
-    setShowCallStack(true);
+    setCurrentView('callstack');
     setLoadingCallStack(true);
     setDebugData(null);
     try {
@@ -1083,14 +1083,23 @@ const API_BASE = rawApiBase.replace(/\/+$/, '');
         </div>
 
         <div className="header-actions">
-          <button 
-            className="callstack-btn" 
-            onClick={handleOpenCallStack}
-            title="View Call Stack"
-          >
-            <Layers size={16} />
-            Call Stack
-          </button>
+          <div className="view-mode-tabs">
+            <button 
+              className={`view-tab-btn ${currentView === 'pipeline' ? 'active' : ''}`}
+              onClick={() => setCurrentView('pipeline')}
+            >
+              <Zap size={15} />
+              <span>Pipeline Visualizer</span>
+            </button>
+            <button 
+              className={`view-tab-btn ${currentView === 'callstack' ? 'active' : ''}`}
+              onClick={handleOpenCallStack}
+              title="Call Stack & RAM Memory Page"
+            >
+              <Layers size={15} />
+              <span>Call Stack &amp; Memory</span>
+            </button>
+          </div>
 
           <button 
             className="visualize-btn" 
@@ -1127,6 +1136,15 @@ const API_BASE = rawApiBase.replace(/\/+$/, '');
         </div>
       </header>
 
+      {currentView === 'callstack' ? (
+        <CallStackModal
+          code={code}
+          debugData={debugData}
+          loading={loadingCallStack}
+          onClose={() => setCurrentView('pipeline')}
+        />
+      ) : (
+        <>
       {/* Compilation Pipeline Overview & What's Happening Container */}
       <div className="top-overview-container">
         {/* Compilation Pipeline (Overview) Panel */}
@@ -2282,14 +2300,7 @@ const API_BASE = rawApiBase.replace(/\/+$/, '');
           </div>
         </div>
       </footer>
-
-      {showCallStack && (
-        <CallStackModal
-          code={code}
-          debugData={debugData}
-          loading={loadingCallStack}
-          onClose={() => setShowCallStack(false)}
-        />
+        </>
       )}
     </div>
   );

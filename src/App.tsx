@@ -642,7 +642,8 @@ export function App() {
       if (activeItemRef.current) {
         activeItemRef.current.scrollIntoView({
           behavior: 'smooth',
-          block: 'nearest'
+          block: 'nearest',
+          inline: 'nearest'
         });
       }
     }, 0);
@@ -1191,6 +1192,7 @@ const API_BASE = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? 'https:
               const isSelected = selectedStageId === mappedStageId;
               const currentStatus = stageArtifacts[mappedStageId]?.status || (mappedStageId === 'source' ? 'completed' : 'pending');
               const Icon = stg.icon;
+              const stageMeta = COMPILATION_STAGES.find((s) => s.id === mappedStageId) || COMPILATION_STAGES[0];
 
               return (
                 <div 
@@ -1202,14 +1204,19 @@ const API_BASE = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? 'https:
                   }}
                   className={`whats-happening-item ${isSelected ? 'active' : ''} ${currentStatus}`}
                   onClick={() => setSelectedStageId(mappedStageId)}
-                  style={{ '--stage-accent': stg.color } as React.CSSProperties}
+                  style={{ 
+                    '--stage-accent': stg.color,
+                    '--stage-glow': stg.glowColor
+                  } as React.CSSProperties}
                 >
                   <div className="item-header">
-                    <Icon size={14} style={{ color: stg.color, flexShrink: 0 }} />
-                    <span className="item-name">{stg.name}</span>
-                    {isSelected && <span className="item-active-tag">Active</span>}
+                    <div className="item-title-group">
+                      <Icon size={14} className="item-icon" style={{ color: stg.color }} />
+                      <span className="item-name">{stg.name}</span>
+                    </div>
+                    {isSelected && <span className="item-active-tag">ACTIVE</span>}
                   </div>
-                  <p className="item-desc">{selectedStageMeta.explanation}</p>
+                  <p className="item-desc">{stageMeta.explanation}</p>
                 </div>
               );
             })}

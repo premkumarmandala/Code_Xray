@@ -772,9 +772,11 @@ const API_BASE = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? 'https:
           setStageArtifacts(newArtifacts);
           return data;
         }
+      } else {
+        console.warn(`[CodeXRay API] ${API_BASE}/api/compile returned status ${response.status}`);
       }
-    } catch {
-      // Offline fallback
+    } catch (err) {
+      console.error(`[CodeXRay API Error] Failed connecting to ${API_BASE}/api/compile:`, err);
     }
     return null;
   };

@@ -55,6 +55,48 @@ interface StageArtifactState {
   status: 'pending' | 'running' | 'completed' | 'error';
 }
 
+function getIncludes(sourceCode: string): string[] {
+  const includes: string[] = [];
+  const lines = sourceCode.split('\n');
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith('#')) {
+      const match = trimmed.match(/^#\s*include\s+(<[^>]+>|"[^"]+")/);
+      if (match) {
+        includes.push(`#include ${match[1]}`);
+      }
+    }
+  }
+  return includes;
+}
+
+function getMacros(sourceCode: string): string[] {
+  const macros: string[] = [];
+  const lines = sourceCode.split('\n');
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith('#')) {
+      const match = trimmed.match(/^#\s*define\s+([A-Za-z_][A-Za-z0-9_]*(?:\([^)]*\))?)(?:\s+(.*))?$/);
+      if (match) {
+        const name = match[1];
+        let val = match[2] ? match[2].trim() : '';
+        if (val.includes('//')) {
+          val = val.split('//')[0].trim();
+        }
+        if (val.includes('/*')) {
+          val = val.replace(/\/\*.*?\*\//g, '').trim();
+        }
+        if (val) {
+          macros.push(`${name} → ${val}`);
+        } else {
+          macros.push(name);
+        }
+      }
+    }
+  }
+  return macros;
+}
+
 interface LlvmVisualData {
   tokens: string[];
   ast: {
@@ -589,11 +631,6 @@ export function App() {
   ]);
   const [copied, setCopied] = useState<boolean>(false);
   const [currentView, setCurrentView] = useState<'pipeline' | 'callstack'>('pipeline');
-<<<<<<< HEAD
-  const [showCallStack, setShowCallStack] = useState<boolean>(false);
-  const [modalStageId, setModalStageId] = useState<string | null>(null);
-=======
->>>>>>> 907e37f (conflit update)
   const [loadingCallStack, setLoadingCallStack] = useState<boolean>(false);
   const [debugData, setDebugData] = useState<DebugData | null>(null);
 
@@ -1293,6 +1330,8 @@ const API_BASE = rawApiBase.replace(/\/+$/, '');
               {/* Preprocessing Stage Flow Visualizer */}
           {selectedStageId === 'preprocessing' && (() => {
             const isPrepCompleted = stageArtifacts['preprocessing']?.status === 'completed';
+            const detectedIncludes = getIncludes(code);
+            const detectedMacros = getMacros(code);
             return (
               <div className="llvm-visual-flow" style={{ background: '#0b1329', border: '1px solid #1e293b', borderRadius: '10px', padding: '1rem' }}>
                 <div style={{ display: 'flex', gap: '0.4rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
@@ -1325,7 +1364,6 @@ const API_BASE = rawApiBase.replace(/\/+$/, '');
                       
                       // For Step 2: Extract definitions and macros
                       const macroDefs = sourceLines.filter(l => l.trim().startsWith('#define'));
-                      const nonMacroCode = sourceLines.filter(l => !l.trim().startsWith('#define') && !l.trim().startsWith('#include')).join('\n');
                       
                       // For Step 3: Lines with comments vs without comments
                       const commentLines = sourceLines.filter(l => l.includes('//') || l.includes('/*'));

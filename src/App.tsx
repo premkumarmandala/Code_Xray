@@ -622,6 +622,7 @@ export function App() {
   
   // Stored raw stage artifacts from compiler
   const [stageArtifacts, setStageArtifacts] = useState<Record<string, StageArtifactState>>({});
+  const [preprocessingStep, setPreprocessingStep] = useState<number>(0);
 
   const [isVisualizing, setIsVisualizing] = useState<boolean>(false);
   const [isPaused, setIsPaused] = useState<boolean>(false);
@@ -700,6 +701,7 @@ export function App() {
       };
     });
     setStageArtifacts(completedArtifacts);
+    setPreprocessingStep(5);
     setSelectedStageId(COMPILATION_STAGES[COMPILATION_STAGES.length - 1].id);
   };
 
@@ -759,14 +761,14 @@ const API_BASE = rawApiBase.replace(/\/+$/, '');
                 inputFile: bData.input_file || stage.inputFile,
                 outputFile: bData.output_file || stage.outputFile,
                 content: contentText || stage.getArtifactContent(sourceCode),
-                status: 'completed'
+                status: 'pending'
               };
             } else if (bData && bData.status === 'error') {
               newArtifacts[stage.id] = {
                 inputFile: stage.inputFile,
                 outputFile: stage.outputFile,
                 content: bData.stderr || 'Compiler error at this stage.',
-                status: 'error'
+                status: 'pending'
               };
             }
           });
@@ -848,8 +850,11 @@ const API_BASE = rawApiBase.replace(/\/+$/, '');
 
   const handleReset = () => {
     isAnimatingRef.current = false;
+    isPausedRef.current = false;
+    setIsPaused(false);
     setIsVisualizing(false);
     setSelectedStageId('source');
+    setPreprocessingStep(0);
 
     const resetArtifacts: Record<string, StageArtifactState> = {};
     COMPILATION_STAGES.forEach((s) => {
@@ -857,7 +862,7 @@ const API_BASE = rawApiBase.replace(/\/+$/, '');
         inputFile: s.inputFile,
         outputFile: s.outputFile,
         content: s.getArtifactContent(code),
-        status: s.id === 'source' ? 'completed' : 'pending'
+        status: 'pending'
       };
     });
 
@@ -871,17 +876,18 @@ const API_BASE = rawApiBase.replace(/\/+$/, '');
     setIsPaused(false);
     isPausedRef.current = false;
     setSelectedStageId('source');
+    setPreprocessingStep(0);
     setIsVisualizing(true);
     isAnimatingRef.current = true;
     
-    // Reset stage statuses to pending except source
+    // Set all stage statuses to pending at the start of visualization
     const initialRunArtifacts: Record<string, StageArtifactState> = {};
     COMPILATION_STAGES.forEach((s) => {
       initialRunArtifacts[s.id] = {
         inputFile: stageArtifacts[s.id]?.inputFile || s.inputFile,
         outputFile: stageArtifacts[s.id]?.outputFile || s.outputFile,
         content: stageArtifacts[s.id]?.content || s.getArtifactContent(code),
-        status: s.id === 'source' ? 'completed' : 'pending'
+        status: 'pending'
       };
     });
     setStageArtifacts(initialRunArtifacts);
@@ -922,9 +928,20 @@ const API_BASE = rawApiBase.replace(/\/+$/, '');
 
         setLogs((prev) => [...prev, stage.terminalOutput]);
 
-        await new Promise((resolve) => setTimeout(resolve, 600));
-        while (isPausedRef.current && isAnimatingRef.current) {
-          await new Promise((resolve) => setTimeout(resolve, 100));
+        if (stage.id === 'preprocessing') {
+          for (let step = 1; step <= 5; step++) {
+            if (!isAnimatingRef.current) break;
+            setPreprocessingStep(step);
+            await new Promise((resolve) => setTimeout(resolve, 500));
+            while (isPausedRef.current && isAnimatingRef.current) {
+              await new Promise((resolve) => setTimeout(resolve, 100));
+            }
+          }
+        } else {
+          await new Promise((resolve) => setTimeout(resolve, 600));
+          while (isPausedRef.current && isAnimatingRef.current) {
+            await new Promise((resolve) => setTimeout(resolve, 100));
+          }
         }
         if (!isAnimatingRef.current) break;
 
@@ -985,9 +1002,20 @@ const API_BASE = rawApiBase.replace(/\/+$/, '');
 
         setLogs((prev) => [...prev, stage.terminalOutput]);
 
-        await new Promise((resolve) => setTimeout(resolve, 600));
-        while (isPausedRef.current && isAnimatingRef.current) {
-          await new Promise((resolve) => setTimeout(resolve, 100));
+        if (stage.id === 'preprocessing') {
+          for (let step = 1; step <= 5; step++) {
+            if (!isAnimatingRef.current) break;
+            setPreprocessingStep(step);
+            await new Promise((resolve) => setTimeout(resolve, 500));
+            while (isPausedRef.current && isAnimatingRef.current) {
+              await new Promise((resolve) => setTimeout(resolve, 100));
+            }
+          }
+        } else {
+          await new Promise((resolve) => setTimeout(resolve, 600));
+          while (isPausedRef.current && isAnimatingRef.current) {
+            await new Promise((resolve) => setTimeout(resolve, 100));
+          }
         }
 
         if (!isAnimatingRef.current) break;
@@ -1028,7 +1056,7 @@ const API_BASE = rawApiBase.replace(/\/+$/, '');
   };
 
   const completedCount = COMPILATION_STAGES.filter(
-    (s) => (stageArtifacts[s.id]?.status || (s.id === 'source' ? 'completed' : 'pending')) === 'completed'
+    (s) => stageArtifacts[s.id]?.status === 'completed'
   ).length;
   const runningCount = COMPILATION_STAGES.filter(
     (s) => stageArtifacts[s.id]?.status === 'running'
@@ -1125,7 +1153,7 @@ const API_BASE = rawApiBase.replace(/\/+$/, '');
           <div className="overview-stages-grid">
             {OVERVIEW_STAGES.map((stg, index) => {
               const mappedStageId = stg.targetStageId;
-              const currentStatus = stageArtifacts[mappedStageId]?.status || (mappedStageId === 'source' ? 'completed' : 'pending');
+              const currentStatus = stageArtifacts[mappedStageId]?.status || 'pending';
               const isSelected = selectedStageId === mappedStageId;
               const Icon = stg.icon;
               const hasError = stageArtifacts[mappedStageId]?.status === 'error';
@@ -1191,7 +1219,7 @@ const API_BASE = rawApiBase.replace(/\/+$/, '');
             {OVERVIEW_STAGES.map((stg) => {
               const mappedStageId = stg.targetStageId;
               const isSelected = selectedStageId === mappedStageId;
-              const currentStatus = stageArtifacts[mappedStageId]?.status || (mappedStageId === 'source' ? 'completed' : 'pending');
+              const currentStatus = stageArtifacts[mappedStageId]?.status || 'pending';
               const Icon = stg.icon;
               const stageMeta = COMPILATION_STAGES.find((s) => s.id === mappedStageId) || COMPILATION_STAGES[0];
 
@@ -1291,30 +1319,32 @@ const API_BASE = rawApiBase.replace(/\/+$/, '');
             const displayMacros = detectedMacros.slice(0, 3);
             const hasMoreMacros = detectedMacros.length > 3;
 
+            const isPrepCompleted = stageArtifacts['preprocessing']?.status === 'completed';
+
+            const getStepClass = (stepNum: number) => {
+              if (isPrepCompleted || preprocessingStep > stepNum) return 'completed';
+              if (preprocessingStep === stepNum) return 'running';
+              return 'pending';
+            };
+
             return (
               <div className="llvm-visual-flow">
                 <div className="llvm-flow-title">Preprocessing Flow Pipeline</div>
 
                 <div className="llvm-cards-wrapper">
-                  {/* Step 1: Source Input main.c */}
-                  <div className="llvm-card">
+                  {/* Step 1: Include Headers */}
+                  <div 
+                    className={`llvm-card ${getStepClass(1)}`}
+                    style={{
+                      borderColor: (getStepClass(1) === 'running' || getStepClass(1) === 'completed') ? '#60a5fa' : undefined,
+                      boxShadow: getStepClass(1) === 'running' ? '0 0 10px rgba(96, 165, 250, 0.4)' : undefined
+                    }}
+                  >
                     <div className="llvm-card-header">
                       <span className="llvm-step-number">Step 1</span>
-                      <span className="llvm-card-title">main.c</span>
-                    </div>
-                    <div className="llvm-card-body">
-                      <div className="llvm-card-desc">Original high-level source code file with directives.</div>
-                      <div className="llvm-card-subtext font-mono">Input File</div>
-                    </div>
-                  </div>
-
-                  <ChevronRight size={18} className="llvm-arrow" />
-
-                  {/* Step 2: Include Expansion */}
-                  <div className="llvm-card">
-                    <div className="llvm-card-header">
-                      <span className="llvm-step-number">Step 2</span>
-                      <span className="llvm-card-title">Include Expansion</span>
+                      <span className="llvm-card-title" style={{ color: getStepClass(1) !== 'pending' ? '#60a5fa' : undefined }}>Include Headers</span>
+                      {getStepClass(1) === 'completed' && <Check size={12} color="#4ade80" />}
+                      {getStepClass(1) === 'running' && <Loader2 size={12} className="spinner" color="#60a5fa" />}
                     </div>
                     <div className="llvm-card-body">
                       <div className="llvm-card-desc">Replaces <code>#include</code> directives with header contents.</div>
@@ -1332,13 +1362,25 @@ const API_BASE = rawApiBase.replace(/\/+$/, '');
                     </div>
                   </div>
 
-                  <ChevronRight size={18} className="llvm-arrow" />
+                  <ChevronRight 
+                    size={18} 
+                    className="llvm-arrow" 
+                    style={{ color: (getStepClass(1) === 'completed' || getStepClass(2) === 'running') ? '#60a5fa' : undefined }} 
+                  />
 
-                  {/* Step 3: Macro Replacement */}
-                  <div className="llvm-card">
+                  {/* Step 2: Expand Macros */}
+                  <div 
+                    className={`llvm-card ${getStepClass(2)}`}
+                    style={{
+                      borderColor: (getStepClass(2) === 'running' || getStepClass(2) === 'completed') ? '#60a5fa' : undefined,
+                      boxShadow: getStepClass(2) === 'running' ? '0 0 10px rgba(96, 165, 250, 0.4)' : undefined
+                    }}
+                  >
                     <div className="llvm-card-header">
-                      <span className="llvm-step-number">Step 3</span>
-                      <span className="llvm-card-title">Macro Replacement</span>
+                      <span className="llvm-step-number">Step 2</span>
+                      <span className="llvm-card-title" style={{ color: getStepClass(2) !== 'pending' ? '#60a5fa' : undefined }}>Expand Macros</span>
+                      {getStepClass(2) === 'completed' && <Check size={12} color="#4ade80" />}
+                      {getStepClass(2) === 'running' && <Loader2 size={12} className="spinner" color="#60a5fa" />}
                     </div>
                     <div className="llvm-card-body">
                       <div className="llvm-card-desc">Expands <code>#define</code> macros &amp; processes conditionals.</div>
@@ -1356,39 +1398,75 @@ const API_BASE = rawApiBase.replace(/\/+$/, '');
                     </div>
                   </div>
 
-                  <ChevronRight size={18} className="llvm-arrow" />
+                  <ChevronRight 
+                    size={18} 
+                    className="llvm-arrow" 
+                    style={{ color: (getStepClass(2) === 'completed' || getStepClass(3) === 'running') ? '#60a5fa' : undefined }} 
+                  />
 
-                  {/* Step 4: Comment Removal */}
-                  <div className="llvm-card">
+                  {/* Step 3: Remove Comments */}
+                  <div 
+                    className={`llvm-card ${getStepClass(3)}`}
+                    style={{
+                      borderColor: (getStepClass(3) === 'running' || getStepClass(3) === 'completed') ? '#60a5fa' : undefined,
+                      boxShadow: getStepClass(3) === 'running' ? '0 0 10px rgba(96, 165, 250, 0.4)' : undefined
+                    }}
+                  >
                     <div className="llvm-card-header">
-                      <span className="llvm-step-number">Step 4</span>
-                      <span className="llvm-card-title">Comment Removal</span>
+                      <span className="llvm-step-number">Step 3</span>
+                      <span className="llvm-card-title" style={{ color: getStepClass(3) !== 'pending' ? '#60a5fa' : undefined }}>Remove Comments</span>
+                      {getStepClass(3) === 'completed' && <Check size={12} color="#4ade80" />}
+                      {getStepClass(3) === 'running' && <Loader2 size={12} className="spinner" color="#60a5fa" />}
                     </div>
                     <div className="llvm-card-body">
                       <div className="llvm-card-desc">Strips single-line <code>//</code> and block <code>/* */</code> comments, replacing them with whitespace.</div>
                     </div>
                   </div>
 
-                  <ChevronRight size={18} className="llvm-arrow" />
+                  <ChevronRight 
+                    size={18} 
+                    className="llvm-arrow" 
+                    style={{ color: (getStepClass(3) === 'completed' || getStepClass(4) === 'running') ? '#60a5fa' : undefined }} 
+                  />
 
-                  {/* Step 5: Line Markers */}
-                  <div className="llvm-card">
+                  {/* Step 4: Add Line Markers */}
+                  <div 
+                    className={`llvm-card ${getStepClass(4)}`}
+                    style={{
+                      borderColor: (getStepClass(4) === 'running' || getStepClass(4) === 'completed') ? '#60a5fa' : undefined,
+                      boxShadow: getStepClass(4) === 'running' ? '0 0 10px rgba(96, 165, 250, 0.4)' : undefined
+                    }}
+                  >
                     <div className="llvm-card-header">
-                      <span className="llvm-step-number">Step 5</span>
-                      <span className="llvm-card-title">Line Markers</span>
+                      <span className="llvm-step-number">Step 4</span>
+                      <span className="llvm-card-title" style={{ color: getStepClass(4) !== 'pending' ? '#60a5fa' : undefined }}>Add Line Markers</span>
+                      {getStepClass(4) === 'completed' && <Check size={12} color="#4ade80" />}
+                      {getStepClass(4) === 'running' && <Loader2 size={12} className="spinner" color="#60a5fa" />}
                     </div>
                     <div className="llvm-card-body">
                       <div className="llvm-card-desc">Inserts <code># linenum "file"</code> directives to track original source lines for compiler diagnostics.</div>
                     </div>
                   </div>
 
-                  <ChevronRight size={18} className="llvm-arrow" />
+                  <ChevronRight 
+                    size={18} 
+                    className="llvm-arrow" 
+                    style={{ color: (getStepClass(4) === 'completed' || getStepClass(5) === 'running') ? '#60a5fa' : undefined }} 
+                  />
 
-                  {/* Step 6: Output main.i */}
-                  <div className="llvm-card llvm-card-target">
+                  {/* Step 5: Generate main.i */}
+                  <div 
+                    className={`llvm-card llvm-card-target ${getStepClass(5)}`}
+                    style={{
+                      borderColor: (getStepClass(5) === 'running' || getStepClass(5) === 'completed') ? '#60a5fa' : undefined,
+                      boxShadow: getStepClass(5) === 'running' ? '0 0 10px rgba(96, 165, 250, 0.4)' : undefined
+                    }}
+                  >
                     <div className="llvm-card-header">
-                      <span className="llvm-step-number">Step 6</span>
-                      <span className="llvm-card-title">main.i</span>
+                      <span className="llvm-step-number">Step 5</span>
+                      <span className="llvm-card-title" style={{ color: getStepClass(5) !== 'pending' ? '#60a5fa' : undefined }}>Generate main.i</span>
+                      {getStepClass(5) === 'completed' && <Check size={12} color="#4ade80" />}
+                      {getStepClass(5) === 'running' && <Loader2 size={12} className="spinner" color="#60a5fa" />}
                     </div>
                     <div className="llvm-card-body">
                       <div className="llvm-output-target font-mono">main.i</div>
@@ -1988,10 +2066,33 @@ const API_BASE = rawApiBase.replace(/\/+$/, '');
                 <span className="panel-header-title">{selectedStageMeta.name} Breakdown</span>
               </div>
               <div className="explanation-panel-body">
-                <div className="explanation-section">
-                  <span className="explanation-section-title">Overview</span>
-                  <p className="explanation-section-text">{selectedStageMeta.explanation}</p>
-                </div>
+                {selectedStageId === 'preprocessing' && preprocessingStep > 0 && stageArtifacts['preprocessing']?.status !== 'completed' ? (
+                  <div className="explanation-section">
+                    <span className="explanation-section-title">
+                      Active Step {preprocessingStep}: {
+                        preprocessingStep === 1 ? 'Include Headers' :
+                        preprocessingStep === 2 ? 'Expand Macros' :
+                        preprocessingStep === 3 ? 'Remove Comments' :
+                        preprocessingStep === 4 ? 'Add Line Markers' :
+                        'Generate main.i'
+                      }
+                    </span>
+                    <p className="explanation-section-text">
+                      {
+                        preprocessingStep === 1 ? 'The preprocessor parses #include directives, locates header files (e.g. <stdio.h>), and pastes their contents directly into the translation unit.' :
+                        preprocessingStep === 2 ? 'Replaces macro identifiers and function-like macros (#define) with their defined values and processes conditional compilation directives (#ifdef).' :
+                        preprocessingStep === 3 ? 'Strips all single-line (//) and multi-line (/* */) comments from the source code, replacing them with whitespace.' :
+                        preprocessingStep === 4 ? 'Inserts # line directives to maintain source file name and line number mapping for error reporting.' :
+                        'Emits the final fully preprocessed C source file (main.i) containing expanded headers, macros, and line markers.'
+                      }
+                    </p>
+                  </div>
+                ) : (
+                  <div className="explanation-section">
+                    <span className="explanation-section-title">Overview</span>
+                    <p className="explanation-section-text">{selectedStageMeta.explanation}</p>
+                  </div>
+                )}
                 <div className="explanation-section">
                   <span className="explanation-section-title">Files</span>
                   <div className="explanation-file-row">
@@ -2070,7 +2171,7 @@ const API_BASE = rawApiBase.replace(/\/+$/, '');
                 {(() => {
                   const hasError = COMPILATION_STAGES.some((s) => stageArtifacts[s.id]?.status === 'error');
                   const allCompleted = COMPILATION_STAGES.every(
-                    (s) => (stageArtifacts[s.id]?.status || (s.id === 'source' ? 'completed' : 'pending')) === 'completed'
+                    (s) => stageArtifacts[s.id]?.status === 'completed'
                   );
                   if (hasError) {
                     return <span className="status-badge-err"><AlertCircle size={12} /> Pipeline Failed</span>;
@@ -2090,7 +2191,7 @@ const API_BASE = rawApiBase.replace(/\/+$/, '');
               <div className="run-log-stage-messages">
                 <div className="run-log-section-title">Stage Completion Messages:</div>
                 {COMPILATION_STAGES.map((s, idx) => {
-                  const status = stageArtifacts[s.id]?.status || (s.id === 'source' ? 'completed' : 'pending');
+                  const status = stageArtifacts[s.id]?.status || 'pending';
                   const hasPriorError = COMPILATION_STAGES.slice(0, idx).some(
                     (prevStage) => stageArtifacts[prevStage.id]?.status === 'error'
                   );
@@ -2119,7 +2220,7 @@ const API_BASE = rawApiBase.replace(/\/+$/, '');
                 {(() => {
                   const hasError = COMPILATION_STAGES.some((s) => stageArtifacts[s.id]?.status === 'error');
                   const allCompleted = COMPILATION_STAGES.every(
-                    (s) => (stageArtifacts[s.id]?.status || (s.id === 'source' ? 'completed' : 'pending')) === 'completed'
+                    (s) => stageArtifacts[s.id]?.status === 'completed'
                   );
                   if (hasError) {
                     return <span className="final-status-text err">Failed with Errors</span>;
@@ -2149,7 +2250,7 @@ const API_BASE = rawApiBase.replace(/\/+$/, '');
             <span className="terminal-stage-badge" style={{ color: stageColor, borderColor: `${stageColor}40`, background: `${stageColor}15` }}>
               Active Stage: {selectedStageMeta.name}
             </span>
-            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Status: {stageArtifacts[selectedStageId]?.status || (selectedStageId === 'source' ? 'completed' : 'pending')}</span>
+            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Status: {stageArtifacts[selectedStageId]?.status || 'pending'}</span>
           </div>
         </div>
         
@@ -2176,7 +2277,7 @@ const API_BASE = rawApiBase.replace(/\/+$/, '');
             <div className="terminal-info-meta">
               <div><span className="info-meta-label">Input File:</span> {currentInputFile}</div>
               <div><span className="info-meta-label">Output Target:</span> {currentOutputFile}</div>
-              <div><span className="info-meta-label">Stage Status:</span> <span style={{ textTransform: 'capitalize', color: (stageArtifacts[selectedStageId]?.status === 'completed' || selectedStageId === 'source') ? '#4ade80' : stageArtifacts[selectedStageId]?.status === 'running' ? '#38bdf8' : '#94a3b8' }}>{stageArtifacts[selectedStageId]?.status || (selectedStageId === 'source' ? 'completed' : 'pending')}</span></div>
+              <div><span className="info-meta-label">Stage Status:</span> <span style={{ textTransform: 'capitalize', color: stageArtifacts[selectedStageId]?.status === 'completed' ? '#4ade80' : stageArtifacts[selectedStageId]?.status === 'running' ? '#38bdf8' : '#94a3b8' }}>{stageArtifacts[selectedStageId]?.status || 'pending'}</span></div>
             </div>
           </div>
         </div>

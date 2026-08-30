@@ -19,4 +19,4 @@ services:
     staticPublishPath: ./dist
     envVars:
       - key: VITE_API_URL
-        value: https://codexray-backend.onrender.com
+        value: https://codexray-backend-hpqy.onrender.com

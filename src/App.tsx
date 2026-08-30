@@ -895,6 +895,7 @@ const API_BASE = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? 'https:
       assembly: 'assembly',
       object_code: 'object_code',
       linking: 'linking',
+      executable: 'linking',
       execution: 'execution'
     };
 
@@ -925,39 +926,7 @@ const API_BASE = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? 'https:
         }
         if (!isAnimatingRef.current) break;
 
-        if (bData && bData.status === 'success') {
-          let extractedContent = bData.content;
-          if (stage.id === 'object_code' && bData.representation) {
-            extractedContent = bData.representation.disassembly || extractedContent;
-          } else if (stage.id === 'execution') {
-            extractedContent = bData.content || bData.stdout || backendData.output || 'Process executed successfully with exit code 0.';
-          }
-
-          setStageArtifacts((prev) => ({
-            ...prev,
-            [stage.id]: {
-              inputFile: bData.input_file || stage.inputFile,
-              outputFile: bData.output_file || stage.outputFile,
-              content: extractedContent || stage.getArtifactContent(code),
-              status: 'completed'
-            },
-            ...(stage.id === 'execution' ? {
-              executable: {
-                ...(prev['executable'] || {
-                  inputFile: COMPILATION_STAGES.find((s) => s.id === 'executable')?.inputFile || 'main.o',
-                  outputFile: COMPILATION_STAGES.find((s) => s.id === 'executable')?.outputFile || 'main',
-                  content: COMPILATION_STAGES.find((s) => s.id === 'executable')?.getArtifactContent(code) || ''
-                }),
-                status: 'completed'
-              }
-            } : {})
-          }));
-
-          if (stage.id === 'execution') {
-            const cleanPrint = (bData.stdout || extractedContent).trim();
-            setLogs((prev) => [...prev, `[Program Output] ${cleanPrint}`]);
-          }
-        } else if (bData && bData.status === 'error') {
+        if (bData && bData.status === 'error') {
           setStageArtifacts((prev) => ({
             ...prev,
             [stage.id]: {
@@ -968,6 +937,30 @@ const API_BASE = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? 'https:
           }));
           setLogs((prev) => [...prev, `[Error] ${bData.stderr}`]);
           break;
+        } else {
+          let extractedContent = bData?.content;
+          if (stage.id === 'object_code' && bData?.representation) {
+            extractedContent = bData.representation.disassembly || extractedContent;
+          } else if (stage.id === 'execution') {
+            extractedContent = bData?.content || bData?.stdout || backendData.output || 'Process executed successfully with exit code 0.';
+          }
+
+          setStageArtifacts((prev) => ({
+            ...prev,
+            [stage.id]: {
+              inputFile: bData?.input_file || stage.inputFile,
+              outputFile: bData?.output_file || stage.outputFile,
+              content: extractedContent || stage.getArtifactContent(code),
+              status: 'completed'
+            }
+          }));
+
+          if (stage.id === 'execution' && (bData?.stdout || extractedContent)) {
+            const cleanPrint = (bData?.stdout || extractedContent || '').trim();
+            if (cleanPrint) {
+              setLogs((prev) => [...prev, `[Program Output] ${cleanPrint}`]);
+            }
+          }
         }
       }
     } else {

@@ -1352,7 +1352,7 @@ const API_BASE = rawApiBase.replace(/\/+$/, '');
                   </span>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 160px auto 1.2fr', gap: '0.5rem', alignItems: 'center', background: '#050811', border: '1px solid #1e293b', borderRadius: '8px', padding: '1rem' }}>
+                <div className="prep-flow-grid" style={{ display: 'grid', gap: '0.5rem', alignItems: 'center', background: '#050811', border: '1px solid #1e293b', borderRadius: '8px', padding: '1rem' }}>
                   {/* Left Source & Context Node */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', minWidth: 0 }}>
                     {(() => {

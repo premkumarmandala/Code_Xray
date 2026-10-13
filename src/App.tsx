@@ -635,6 +635,7 @@ export function App() {
   const [debugData, setDebugData] = useState<DebugData | null>(null);
 
   const activeItemRef = useRef<HTMLDivElement | null>(null);
+  const overviewStagesGridRef = useRef<HTMLDivElement | null>(null);
   const isAnimatingRef = useRef<boolean>(false);
   const isPausedRef = useRef<boolean>(false);
 
@@ -648,6 +649,29 @@ export function App() {
         });
       }
     }, 0);
+    return () => clearTimeout(timer);
+  }, [selectedStageId]);
+
+  // Mobile/compact only: horizontally auto-scroll the pipeline stage row so the
+  // currently running/active stage stays in view while the pipeline processes.
+  useEffect(() => {
+    const container = overviewStagesGridRef.current;
+    if (!container) return;
+    // Skip when every stage already fits (desktop) — no behavior change there.
+    if (container.scrollWidth <= container.clientWidth + 1) return;
+
+    const card = container.querySelector<HTMLElement>('.overview-stage-card.selected');
+    if (!card) return;
+
+    const timer = setTimeout(() => {
+      const containerRect = container.getBoundingClientRect();
+      const cardRect = card.getBoundingClientRect();
+      const targetLeft =
+        container.scrollLeft +
+        (cardRect.left - containerRect.left) -
+        (container.clientWidth - cardRect.width) / 2;
+      container.scrollTo({ left: targetLeft, behavior: 'smooth' });
+    }, 50);
     return () => clearTimeout(timer);
   }, [selectedStageId]);
 
@@ -1169,7 +1193,7 @@ const API_BASE = rawApiBase.replace(/\/+$/, '');
             <div className="overview-progress-fill" style={{ width: `${progressPercent}%` }} />
           </div>
 
-          <div className="overview-stages-grid">
+          <div className="overview-stages-grid" ref={overviewStagesGridRef}>
             {OVERVIEW_STAGES.map((stg, index) => {
               const mappedStageId = stg.targetStageId;
               const currentStatus = stageArtifacts[mappedStageId]?.status || 'pending';

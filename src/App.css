@@ -3364,6 +3364,36 @@
   .ram-inspector-section {
     padding: 1rem;
   }
+
+  /* Execution / Object / Assembly / LLVM stage flow: stack cards vertically */
+  .object-cards-wrapper,
+  .assembly-cards-wrapper,
+  .llvm-cards-wrapper {
+    flex-direction: column;
+    align-items: stretch;
+    overflow-x: visible;
+  }
+
+  .object-card,
+  .assembly-card,
+  .llvm-card {
+    flex: 0 0 auto;
+    min-width: 0;
+    width: 100%;
+  }
+
+  .object-arrow,
+  .assembly-arrow,
+  .llvm-arrow {
+    align-self: center;
+    transform: rotate(90deg);
+    margin: 0.2rem 0;
+  }
+
+  /* Let stdout / long values break on word boundaries, not every character */
+  .object-output-target {
+    word-break: break-word !important;
+  }
 }
 
 /* Very small phones */
